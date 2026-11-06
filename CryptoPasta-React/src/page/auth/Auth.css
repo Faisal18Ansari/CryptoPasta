@@ -1,0 +1,12 @@
+.authContainer {
+    background-image: url("/login-background.jpg");
+    min-height: 100vh;
+    width: 100%;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: #130b1a;
+}
+.bgBlur{
+    backdrop-filter: blur(10px);
+}
