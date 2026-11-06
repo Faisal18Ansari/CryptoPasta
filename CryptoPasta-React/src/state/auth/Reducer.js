@@ -15,6 +15,8 @@ const authReducer = (state = initialState, action) => {
             return { ...state, loading: true, error: null }
 
         case REGISTER_SUCCESS:
+            return { ...state, loading: false, error: null }
+
         case LOGIN_SUCCESS:
             return { ...state, loading: false, error: null, jwt: action.payload }
 

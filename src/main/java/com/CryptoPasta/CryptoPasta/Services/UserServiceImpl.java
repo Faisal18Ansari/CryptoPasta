@@ -6,7 +6,9 @@ import com.CryptoPasta.CryptoPasta.Model.TwoFactorAuth;
 import com.CryptoPasta.CryptoPasta.Model.User;
 import com.CryptoPasta.CryptoPasta.Repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.CryptoPasta.CryptoPasta.Utilities.PasswordPolicy;
 
 import java.util.Optional;
 
@@ -15,6 +17,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Override
     public User findUserProfileByJwt(String jwt) throws Exception {
@@ -57,7 +62,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User updatePassword(User user, String newPassword) {
-        user.setPassword(newPassword);
+        PasswordPolicy.validateBcryptPassword(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
         return userRepository.save(user);
     }
 }

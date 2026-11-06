@@ -2,7 +2,6 @@ package com.CryptoPasta.CryptoPasta.Config;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 import io.jsonwebtoken.JwtException;
 
-import java.nio.charset.StandardCharsets;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -35,9 +33,7 @@ public class JwtTokenValidator extends OncePerRequestFilter {
         String jwt = header.substring(7).trim();
 
         try {
-            SecretKey key = Keys.hmacShaKeyFor(
-                    JwtConstant.SECRET_KEY.getBytes(StandardCharsets.UTF_8)
-            );
+            SecretKey key = JwtConstant.getSecretKey();
 
             Claims claims = Jwts.parser()
                     .verifyWith(key)

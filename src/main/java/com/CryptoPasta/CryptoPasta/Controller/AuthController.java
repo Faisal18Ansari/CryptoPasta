@@ -8,6 +8,7 @@ import com.CryptoPasta.CryptoPasta.Response.AuthResponse;
 import com.CryptoPasta.CryptoPasta.Services.*;
 import com.CryptoPasta.CryptoPasta.Utilities.OtpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -15,8 +16,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import com.CryptoPasta.CryptoPasta.Services.WalletService;
+import com.CryptoPasta.CryptoPasta.Utilities.PasswordPolicy;
 
 @RestController
 @RequestMapping("/auth")
@@ -32,6 +36,13 @@ public class AuthController {
     private CustomUserDetailService customUserDetailService;
 
     @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    @Qualifier("dummyPasswordHash")
+    private String dummyPasswordHash;
+
+    @Autowired
     private TwoFactorOtpService twoFactorOtpService;
 
     @Autowired
@@ -42,13 +53,14 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<AuthResponse> register(@RequestBody User user) throws Exception {
+        PasswordPolicy.validateBcryptPassword(user.getPassword());
         User isEmailExist = userRepository.findByEmail(user.getEmail());
         if (isEmailExist != null) {
             throw new Exception("Email already exists and is linked to another account");
         }
         User newUser = new User();
         newUser.setEmail(user.getEmail());
-        newUser.setPassword((user.getPassword()));
+        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
         newUser.setFullName(user.getFullName());
 
         User savedUser = userRepository.save(newUser);
@@ -73,8 +85,10 @@ public class AuthController {
         String username = user.getEmail();
         String password = user.getPassword();
         User authUser = userRepository.findByEmail(username);
+        boolean bcryptCompatible = PasswordPolicy.isBcryptCompatible(password);
 
-        if (authUser == null) {
+        if (authUser == null || !bcryptCompatible) {
+            passwordEncoder.matches(bcryptCompatible ? password : "", dummyPasswordHash);
             throw new BadCredentialsException("Invalid credentials");
         }
 
@@ -109,12 +123,15 @@ public class AuthController {
     }
 
     private Authentication authenticate(String username, String password) {
-        UserDetails userDetails = customUserDetailService.loadUserByUsername(username);
-        if (userDetails == null) {
-            throw new BadCredentialsException("Invalid Username");
+        UserDetails userDetails;
+        try {
+            userDetails = customUserDetailService.loadUserByUsername(username);
+        } catch (UsernameNotFoundException exception) {
+            passwordEncoder.matches(password, dummyPasswordHash);
+            throw new BadCredentialsException("Invalid credentials");
         }
-        if (!password.equals(userDetails.getPassword())) {
-            throw new BadCredentialsException("Invalid Password");
+        if (!passwordEncoder.matches(password, userDetails.getPassword())) {
+            throw new BadCredentialsException("Invalid credentials");
         }
 
         return new UsernamePasswordAuthenticationToken(userDetails, password, userDetails.getAuthorities());

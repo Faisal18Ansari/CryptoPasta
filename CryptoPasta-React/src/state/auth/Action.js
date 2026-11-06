@@ -1,19 +1,23 @@
-// P301-gdun */
 import axios from "axios"
 import { REGISTER_FAILURE, REGISTER_REQUEST, REGISTER_SUCCESS, LOGIN_REQUEST, LOGIN_SUCCESS, LOGIN_FAILURE, GET_USER_REQUEST, GET_USER_SUCCESS, GET_USER_FAILURE, LOGOUT } from "./ActionType"
 
 export const register = (userData) => async (dispatch) => {
     dispatch({ type: REGISTER_REQUEST })
+
     const baseURL = "http://localhost:5454"
+
     try {
-        const response = await axios.post(`${baseURL}/auth/signup`, userData);
-        const user = response.data;
-        console.log(user);
-        dispatch({ type: REGISTER_SUCCESS, payload: user.jwt });
-        localStorage.setItem("jwt", user.jwt);
+        await axios.post(`${baseURL}/auth/signup`, userData)
+
+        // Signup should not sign the user in automatically.
+        dispatch({ type: REGISTER_SUCCESS })
+        return true
     } catch (error) {
-        dispatch({ type: REGISTER_FAILURE, payload: error.message })
-        console.log(error);
+        dispatch({
+            type: REGISTER_FAILURE,
+            payload: error.response?.data || error.message || "Signup failed."
+        })
+        return false
     }
 }
 
@@ -23,7 +27,6 @@ export const login = (userData) => async (dispatch) => {
     try {
         const response = await axios.post(`${baseURL}/auth/signin`, userData.data);
         const user = response.data;
-        console.log(user);
         dispatch({ type: LOGIN_SUCCESS, payload: user.jwt });
         localStorage.setItem("jwt", user.jwt);
         userData.navigate("/");

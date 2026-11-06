@@ -13,7 +13,7 @@ import {
     FieldLabel,
     FieldSet,
 } from "@/components/ui/field"
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { register } from "@/state/auth/Action";
 
 const signupSchema = z.object({
@@ -24,11 +24,16 @@ const signupSchema = z.object({
         .regex(/[a-z]/, "Include at least one lowercase letter.")
         .regex(/[A-Z]/, "Include at least one uppercase letter.")
         .regex(/[0-9]/, "Include at least one number.")
-        .regex(/[^A-Za-z0-9]/, "Include at least one symbol."),
+        .regex(/[^A-Za-z0-9]/, "Include at least one symbol.")
+        .refine(
+            (password) => new TextEncoder().encode(password).length <= 72,
+            "Use a password no longer than 72 UTF-8 bytes."
+        ),
 })
 
 const Signup = ({ onSubmitted }) => {
-    const dispatch = useDispatch()
+    const dispatch = useDispatch();
+    const authError = useSelector((state) => state.auth.error);
     const form = useForm({
         resolver: zodResolver(signupSchema),
         defaultValues: {
@@ -37,10 +42,12 @@ const Signup = ({ onSubmitted }) => {
             password: ""
         }
     })
-    const onSubmit = (data) => {
-        console.log("Signup data:", { ...data, password: "[redacted]" })
-        dispatch(register(data))
-        onSubmitted?.(data)
+    const onSubmit = async (data) => {
+        const succeeded = await dispatch(register(data));
+
+        if (succeeded) {
+            onSubmitted?.();
+        }
     }
 
     const renderField = (name, label, placeholder, description) => {
@@ -91,6 +98,13 @@ const Signup = ({ onSubmitted }) => {
 
                     </FieldGroup>
                 </FieldSet>
+                {authError && (
+                    <p role="alert" className="mt-3 text-center text-sm text-destructive">
+                        {typeof authError === "string"
+                            ? authError
+                            : authError.message || "Signup failed. Please try again."}
+                    </p>
+                )}
                 <Button type="submit" className="mx-auto mt-6 flex w-[92%]">
                     Create New Account
                 </Button>

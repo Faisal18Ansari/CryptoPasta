@@ -13,7 +13,7 @@ import {
     FieldLabel,
     FieldSet,
 } from "@/components/ui/field"
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { login } from "@/state/auth/Action";
 import { useNavigate } from "react-router-dom";
 
@@ -25,6 +25,7 @@ const signinSchema = z.object({
 const Signin = ({ onSubmitted }) => {
     const dispatch = useDispatch()
     const navigate = useNavigate();
+    const authError = useSelector((state) => state.auth.error);
     const form = useForm({
         resolver: zodResolver(signinSchema),
         defaultValues: {
@@ -80,6 +81,13 @@ const Signin = ({ onSubmitted }) => {
 
                     </FieldGroup>
                 </FieldSet>
+                {authError && (
+                    <p role="alert" className="mt-3 text-center text-sm text-destructive">
+                        {typeof authError === "string"
+                            ? authError
+                            : authError.message || "Unable to sign in. Please check your credentials."}
+                    </p>
+                )}
                 <Button type="submit" className="mx-auto mt-6 flex w-[92%]">
                     Sign in
                 </Button>
