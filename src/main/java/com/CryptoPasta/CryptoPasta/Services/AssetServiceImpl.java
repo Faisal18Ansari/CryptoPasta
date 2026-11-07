@@ -44,13 +44,19 @@ public class AssetServiceImpl implements AssetService {
     @Override
     public Asset updateAsset(Long assetId, double quantity) throws Exception {
         Asset oldAsset = getAssetById(assetId);
-        oldAsset.setQuantity(quantity+oldAsset.getQuantity());
+        oldAsset.setQuantity(quantity + oldAsset.getQuantity());
         return assetRepository.save(oldAsset);
     }
 
     @Override
     public Asset findAssetByUserIdAndCoinId(Long userId, String coinId) {
-        return assetRepository.findByUserIdAndCoinId(userId,coinId);
+        return assetRepository.findByUserIdAndCoinId(userId, coinId);
+    }
+
+    @Override
+    public Asset findAssetByUserIdAndCoinIdForUpdate(Long userId, String coinId) {
+        return assetRepository.findByUserIdAndCoinIdForUpdate(userId, coinId)
+                .orElse(null);
     }
 
     @Override

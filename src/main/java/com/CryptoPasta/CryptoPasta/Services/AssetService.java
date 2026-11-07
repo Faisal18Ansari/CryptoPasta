@@ -19,5 +19,7 @@ public interface AssetService {
 
     Asset findAssetByUserIdAndCoinId(Long userId, String coinId);
 
+    Asset findAssetByUserIdAndCoinIdForUpdate(Long userId, String coinId);
+
     void deleteAsset(Long assetId);
 }

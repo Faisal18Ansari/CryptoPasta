@@ -18,4 +18,6 @@ public interface WalletService {
 
     Wallet payOrderAmount(Order order, User user) throws Exception;
 
+    Wallet getUserWalletForUpdate(User user);
+
 }

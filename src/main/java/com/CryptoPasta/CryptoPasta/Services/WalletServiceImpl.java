@@ -163,8 +163,9 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Wallet payOrderAmount(Order order, User user) throws Exception {
-        Wallet wallet = getUserWallet(user);
+        Wallet wallet = getUserWalletForUpdate(user);
         if (order.getOrderType().equals(OrderType.BUY)) {
             BigDecimal balance = wallet.getBalance();
             BigDecimal orderPrice = order.getPrice();
@@ -183,5 +184,14 @@ public class WalletServiceImpl implements WalletService {
         }
         walletRepository.save(wallet);
         return wallet;
+    }
+
+    @Override
+    public Wallet getUserWalletForUpdate(User user) {
+        return walletRepository.findByUserIdForUpdate(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Wallet not found."
+                ));
     }
 }

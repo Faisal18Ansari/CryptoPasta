@@ -84,7 +84,10 @@ public class OrderServiceImpl implements OrderService {
                 order.getPrice().longValue()
         );
 //        CREATE ASSET
-        Asset oldAsset = assetService.findAssetByUserIdAndCoinId(order.getUser().getId(), order.getOrderItem().getCoin().getId());
+        Asset oldAsset = assetService.findAssetByUserIdAndCoinIdForUpdate(
+                order.getUser().getId(),
+                order.getOrderItem().getCoin().getId()
+        );
         if (oldAsset == null) {
             assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity());
         } else {
@@ -99,7 +102,10 @@ public class OrderServiceImpl implements OrderService {
             throw new Exception("Quantity should be minimum 1!");
         }
         double sellPrice = coin.getCurrentPrice();
-        Asset assetToSell = assetService.findAssetByUserIdAndCoinId(user.getId(), coin.getId());
+        Asset assetToSell = assetService.findAssetByUserIdAndCoinIdForUpdate(
+                user.getId(),
+                coin.getId()
+        );
         double buyPrice = assetToSell.getBuyPrice();
         if (assetToSell != null) {
             OrderItem orderItem = createOrderItem(coin, quantity, buyPrice, sellPrice);
@@ -133,6 +139,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public Order processOrder(Coin coin, double quantity, OrderType orderType, User user) throws Exception {
+        walletService.getUserWalletForUpdate(user);
         if (orderType.equals(OrderType.BUY)) {
             return buyAsset(coin, quantity, user);
         } else if (orderType.equals(OrderType.SELL)) {
