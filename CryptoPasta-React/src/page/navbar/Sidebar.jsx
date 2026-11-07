@@ -1,10 +1,10 @@
-import { ActivityIcon, BookmarkIcon, CreditCardIcon, HomeIcon, LandmarkIcon, LayoutDashboardIcon, PersonStandingIcon, SquareArrowRightExitIcon, WalletIcon } from "lucide-react";
+import { ActivityIcon, BookmarkIcon, CreditCardIcon, HomeIcon, LandmarkIcon, LayoutDashboardIcon, PersonStandingIcon, ShieldCheckIcon, SquareArrowRightExitIcon, WalletIcon } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
 import { logout } from "@/state/auth/Action";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 const menu = [
     {
         name: "Home", path: "/", icon: <HomeIcon className="h-6 w-6" />
@@ -28,6 +28,9 @@ const menu = [
         name: "Withdrawal", path: "/withdrawal", icon: <CreditCardIcon className="h-6 w-6" />
     },
     {
+        name: "Admin Withdrawals", path: "/admin/withdrawals", adminOnly: true, icon: <ShieldCheckIcon className="h-6 w-6" />
+    },
+    {
         name: "Profile", path: "/profile", icon: <PersonStandingIcon className="h-6 w-6" />
     },
     {
@@ -37,12 +40,14 @@ const menu = [
 const Sidebar = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const isAdmin = useSelector(state => state.auth.user?.userRole === "ROLE_ADMIN");
+    const visibleMenu = menu.filter(item => !item.adminOnly || isAdmin);
     const handleLogout = () => {
         dispatch(logout())
     }
     return (
-        <div className="mt-8 space-y-4 px-0 pb-2">
-            {menu.map((item) => (
+        <div className="mt-8 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-0 pb-2">
+            {visibleMenu.map((item) => (
                 <div key={item.name}>
                     <SheetClose asChild>
                         <Button variant="outline" onClick={() => {

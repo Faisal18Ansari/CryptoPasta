@@ -13,6 +13,7 @@ import com.CryptoPasta.CryptoPasta.Repository.WalletRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -94,19 +95,65 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Withdrawal proceedWithWithdrawal(Long withdrawalId, boolean accept) throws Exception {
-        Optional<Withdrawal> withdrawal = withdrawalRepository.findById(withdrawalId);
-        if (withdrawal.isEmpty()) {
-            throw new Exception("Withdrawal not found!");
+        Withdrawal withdrawal = withdrawalRepository.findByIdForUpdate(withdrawalId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Withdrawal not found."
+                ));
+
+        if (withdrawal.getStatus() != WithdrawalStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This withdrawal has already been processed."
+            );
         }
-        Withdrawal withdrawal1 = withdrawal.get();
-        withdrawal1.setDate(LocalDateTime.now());
+
+        Long amount = withdrawal.getAmount();
+        if (amount == null || amount <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This withdrawal has an invalid amount and cannot be processed."
+            );
+        }
+
         if (accept) {
-            withdrawal1.setStatus(WithdrawalStatus.SUCCESS);
+            withdrawal.setStatus(WithdrawalStatus.SUCCESS);
         } else {
-            withdrawal1.setStatus(WithdrawalStatus.PENDING);
+            Long requesterId = withdrawal.getUser().getId();
+
+            Wallet requesterWallet = walletRepository.findByUserIdForUpdate(requesterId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Requester's wallet not found."
+                    ));
+
+            if (requesterWallet.getBalance() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Requester's wallet balance is not initialized."
+                );
+            }
+
+            requesterWallet.setBalance(
+                    requesterWallet.getBalance().add(BigDecimal.valueOf(amount))
+            );
+            walletRepository.save(requesterWallet);
+
+            transactionService.createTransaction(
+                    requesterWallet,
+                    WalletTransactionType.WITHDRAWAL,
+                    null,
+                    "Declined withdrawal refund",
+                    amount
+            );
+
+            withdrawal.setStatus(WithdrawalStatus.DECLINE);
         }
-        return withdrawalRepository.save(withdrawal1);
+
+        withdrawal.setDate(LocalDateTime.now());
+        return withdrawalRepository.save(withdrawal);
     }
 
     @Override

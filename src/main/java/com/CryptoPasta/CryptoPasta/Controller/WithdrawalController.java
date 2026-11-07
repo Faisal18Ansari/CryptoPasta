@@ -38,14 +38,11 @@ public class WithdrawalController {
     }
 
     @PatchMapping("/api/admin/withdrawal/{id}/proceed/{accept}")
-    public ResponseEntity<?> proceedWithWithdrawal(@PathVariable Long id, @PathVariable boolean accept, @RequestHeader("Authorization") String jwt) throws Exception {
-        User user = userService.findUserProfileByJwt(jwt);
+    public ResponseEntity<Withdrawal> proceedWithWithdrawal(
+            @PathVariable Long id,
+            @PathVariable boolean accept
+    ) throws Exception {
         Withdrawal withdrawal = withdrawalService.proceedWithWithdrawal(id, accept);
-        Wallet userWallet = walletService.getUserWallet(user);
-        if (!accept) {
-            walletService.addBalance(userWallet, withdrawal.getAmount());
-            transactionService.createTransaction(userWallet, WalletTransactionType.WITHDRAWAL, null, "withdrawal declined - refund to wallet", withdrawal.getAmount());
-        }
         return new ResponseEntity<>(withdrawal, HttpStatus.OK);
     }
 

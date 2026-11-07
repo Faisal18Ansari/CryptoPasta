@@ -13,6 +13,7 @@ import PaymentDetails from "./page/paymentDetails/PaymentDetails"
 import StockDetails from "./page/stockDetails/StockDetails"
 import Watchlist from "./page/watchlist/Watchlist"
 import Profile from "./page/profile/Profile"
+import WithdrawalAdmin from "./page/admin/WithdrawalAdmin"
 import SearchCoin from "./page/search/SearchCoin"
 import NotFound from "./page/notfound/NotFound"
 import { Route, Routes } from "react-router-dom";
@@ -47,6 +48,10 @@ function App() {
           <Route path="/market/:id" element={<StockDetails />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/profile" element={<Profile />} />
+          <Route
+            path="/admin/withdrawals"
+            element={auth.user?.userRole === "ROLE_ADMIN" ? <WithdrawalAdmin /> : <NotFound />}
+          />
           <Route path="/search" element={<SearchCoin />} />
           <Route path="/*" element={<NotFound />} />
         </Routes>

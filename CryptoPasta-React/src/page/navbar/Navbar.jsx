@@ -17,7 +17,7 @@ const Navbar = () => {
                             <span className="sr-only">Open navigation menu</span>
                         </Button>
                     </SheetTrigger>
-                    <SheetContent className=" !w-[296px] !max-w-[296px] flex flex-col justify-start border-r-0 px-6 pt-10 pb-4 [&>button]:top-5 [&>button]:right-5" side="left">
+                    <SheetContent className="!w-[296px] !max-w-[296px] flex min-h-0 flex-col justify-start overflow-hidden border-r-0 px-6 pt-10 pb-4 [&>button]:top-5 [&>button]:right-5" side="left">
                         <SheetHeader className="p-0">
                             <SheetTitle>
                                 <div className="flex items-center justify-center gap-0">

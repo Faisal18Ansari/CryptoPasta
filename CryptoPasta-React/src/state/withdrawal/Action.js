@@ -5,6 +5,12 @@ const getAuthConfig = (jwt = localStorage.getItem("jwt")) => ({
   headers: jwt ? { Authorization: `Bearer ${jwt}` } : {}
 });
 
+const getErrorMessage = (error, fallback) => {
+  const responseData = error.response?.data;
+  const message = responseData?.detail ?? responseData?.message ?? responseData?.error;
+  return typeof message === "string" ? message : error.message || fallback;
+};
+
 export const withdrawalRequest = ({ amount, jwt }) => async dispatch => {
   dispatch({ type: WITHDRAWAL_REQUEST });
 
@@ -52,12 +58,13 @@ export const proceedWithdrawal = ({ id, jwt, accept }) => async dispatch => {
       type: WITHDRAWAL_PROCEED_SUCCESS,
       payload: response.data
     });
+    return response.data;
   } catch (error) {
-    console.log(error)
     dispatch({
       type: WITHDRAWAL_PROCEED_FAILURE,
-      payload: error.message
+      payload: getErrorMessage(error, "Unable to process this withdrawal.")
     });
+    return null;
   }
 };
 
@@ -93,7 +100,7 @@ export const getAllWithdrawalRequest = jwt => async dispatch => {
     console.log("error ", error)
     dispatch({
       type: GET_WITHDRAWAL_REQUEST_FAILURE,
-      payload: error.message
+      payload: getErrorMessage(error, "Unable to load withdrawal requests.")
     });
   }
 };
