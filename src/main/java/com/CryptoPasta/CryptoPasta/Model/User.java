@@ -13,6 +13,8 @@ public class User {
     private long id;
 
     private String fullName;
+
+    @Column(nullable = false, unique = true, length = 255)
     private String email;
 
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)

@@ -21,10 +21,18 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import com.CryptoPasta.CryptoPasta.Services.WalletService;
 import com.CryptoPasta.CryptoPasta.Utilities.PasswordPolicy;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Locale;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
+
+    private static final String EMAIL_ALREADY_REGISTERED =
+            "An account with this email already exists.";
 
     @Autowired
     private UserRepository userRepository;
@@ -52,29 +60,45 @@ public class AuthController {
     private WatchlistService watchlistService;
 
     @PostMapping("/signup")
-    public ResponseEntity<AuthResponse> register(@RequestBody User user) throws Exception {
+    public ResponseEntity<?> register(@RequestBody User user) throws Exception {
         PasswordPolicy.validateBcryptPassword(user.getPassword());
-        User isEmailExist = userRepository.findByEmail(user.getEmail());
-        if (isEmailExist != null) {
-            throw new Exception("Email already exists and is linked to another account");
+
+        String normalizedEmail = normalizeEmail(user.getEmail());
+
+        if (userRepository.findByEmail(normalizedEmail) != null) {
+            return duplicateEmailResponse();
         }
+
         User newUser = new User();
-        newUser.setEmail(user.getEmail());
+        newUser.setEmail(normalizedEmail);
         newUser.setPassword(passwordEncoder.encode(user.getPassword()));
         newUser.setFullName(user.getFullName());
 
-        User savedUser = userRepository.save(newUser);
+        final User savedUser;
+        try {
+            savedUser = userRepository.saveAndFlush(newUser);
+        } catch (DataIntegrityViolationException exception) {
+            if (userRepository.findByEmail(normalizedEmail) != null) {
+                return duplicateEmailResponse();
+            }
+
+            throw exception;
+        }
+
         watchlistService.createWatchlist(savedUser);
         walletService.createWallet(savedUser);
 
-        Authentication auth = new UsernamePasswordAuthenticationToken(user.getEmail(), user.getPassword());
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                normalizedEmail,
+                user.getPassword()
+        );
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         String jwt = JwtProvider.generateToken(auth);
         AuthResponse res = new AuthResponse();
         res.setJwt(jwt);
         res.setStatus(true);
-        res.setMessage("Registration Succeful");
+        res.setMessage("Registration Successful");
 
         return new ResponseEntity<>(res, HttpStatus.CREATED);
     }
@@ -82,7 +106,7 @@ public class AuthController {
     @PostMapping("/signin")
     public ResponseEntity<AuthResponse> login(@RequestBody User user) throws Exception {
         System.out.println("LOGIN CONTROLLER REACHED: " + user.getEmail());
-        String username = user.getEmail();
+        String username = normalizeEmail(user.getEmail());
         String password = user.getPassword();
         User authUser = userRepository.findByEmail(username);
         boolean bcryptCompatible = PasswordPolicy.isBcryptCompatible(password);
@@ -149,6 +173,7 @@ public class AuthController {
         }
         throw new Exception("Invalid OTP");
     }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<String> handleBadCredentials(
             BadCredentialsException exception
@@ -156,5 +181,22 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(exception.getMessage());
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Email is required."
+            );
+        }
+
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private ResponseEntity<Map<String, String>> duplicateEmailResponse() {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("message", EMAIL_ALREADY_REGISTERED));
     }
 }
