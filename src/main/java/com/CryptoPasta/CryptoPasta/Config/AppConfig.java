@@ -58,6 +58,7 @@ public class AppConfig {
                         .requestMatchers("/auth/two-factor/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/users/profile").authenticated()
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(

@@ -42,10 +42,11 @@ public class JwtTokenValidator extends OncePerRequestFilter {
                     .getPayload();
 
             String email = claims.get("email", String.class);
-            String authorities = String.valueOf(claims.get("authorities"));
+            String authorities = claims.get("authorities", String.class);
 
-            List<GrantedAuthority> authoritiesList =
-                    AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
+            List<GrantedAuthority> authoritiesList = authorities == null
+                    ? List.of()
+                    : AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
 
             Authentication authentication =
                     new UsernamePasswordAuthenticationToken(

@@ -23,7 +23,9 @@ import com.CryptoPasta.CryptoPasta.Services.WalletService;
 import com.CryptoPasta.CryptoPasta.Utilities.PasswordPolicy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.server.ResponseStatusException;
-
+import com.CryptoPasta.CryptoPasta.Domain.USER_ROLE;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -73,6 +75,7 @@ public class AuthController {
         newUser.setEmail(normalizedEmail);
         newUser.setPassword(passwordEncoder.encode(user.getPassword()));
         newUser.setFullName(user.getFullName());
+        newUser.setUserRole(USER_ROLE.ROLE_CUSTOMER);
 
         final User savedUser;
         try {
@@ -90,7 +93,8 @@ public class AuthController {
 
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 normalizedEmail,
-                user.getPassword()
+                user.getPassword(),
+                List.of(new SimpleGrantedAuthority(savedUser.getUserRole().name()))
         );
         SecurityContextHolder.getContext().setAuthentication(auth);
 
