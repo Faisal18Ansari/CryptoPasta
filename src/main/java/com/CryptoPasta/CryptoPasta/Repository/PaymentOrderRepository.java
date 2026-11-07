@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
+    boolean existsByRazorpayPaymentId(String razorpayPaymentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PaymentOrder p where p.id = :id")
     Optional<PaymentOrder> findByIdForUpdate(@Param("id") Long id);

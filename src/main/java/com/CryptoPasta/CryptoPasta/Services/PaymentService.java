@@ -10,13 +10,20 @@ import com.stripe.exception.StripeException;
 public interface PaymentService {
     PaymentOrder createOrder(User user, Long amount, PaymentMethod paymentMethod);
 
-    PaymentOrder getPaymentOrderByIdForUpdate(Long id) throws Exception;
+    PaymentOrder getPaymentOrderByIdForUpdate(Long id);
 
     PaymentOrder getPaymentOrderById(Long id) throws Exception;
 
-    Boolean proceedPaymentOrder(PaymentOrder paymentOrder, String paymentId) throws RazorpayException;
+    Boolean proceedPaymentOrder(
+            PaymentOrder paymentOrder,
+            String paymentId,
+            String paymentLinkId,
+            String paymentLinkReferenceId,
+            String paymentLinkStatus,
+            String signature
+    );
 
-    PaymentResponse createRazorpayPaymentLink(User user, Long amount, Long orderId) throws RazorpayException;
+    PaymentResponse createRazorpayPaymentLink(PaymentOrder paymentOrder) throws RazorpayException;
 
     PaymentResponse createStripePaymentLink(User user, Long amount, Long orderId) throws StripeException;
 

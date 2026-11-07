@@ -40,8 +40,11 @@ export const Wallet = () => {
     );
     const query = useQuery();
     const orderId = query.get("order_id");
-    const paymentId = query.get("payment_id");
     const razorpayPaymentId = query.get("razorpay_payment_id");
+    const paymentLinkId = query.get("razorpay_payment_link_id");
+    const paymentLinkReferenceId = query.get("razorpay_payment_link_reference_id");
+    const paymentLinkStatus = query.get("razorpay_payment_link_status");
+    const razorpaySignature = query.get("razorpay_signature");
     const navigate = useNavigate();
     const processedPayment = useRef(null);
     const handleFetchUserWallet = () => {
@@ -56,19 +59,31 @@ export const Wallet = () => {
     }, []);
     useEffect(() => {
         if (orderId) {
-            const confirmedPaymentId = razorpayPaymentId || paymentId;
-            const paymentKey = `${orderId}:${confirmedPaymentId || ""}`;
+            const paymentKey = `${orderId}:${razorpayPaymentId || ""}`;
             if (processedPayment.current === paymentKey) return;
             processedPayment.current = paymentKey;
 
             dispatch(depositMoney({
                 jwt: localStorage.getItem("jwt"),
                 orderId,
-                paymentId: confirmedPaymentId,
+                paymentId: razorpayPaymentId,
+                paymentLinkId,
+                paymentLinkReferenceId,
+                paymentLinkStatus,
+                signature: razorpaySignature,
                 navigate
             }))
         }
-    }, [orderId, paymentId, razorpayPaymentId])
+    }, [
+        orderId,
+        razorpayPaymentId,
+        paymentLinkId,
+        paymentLinkReferenceId,
+        paymentLinkStatus,
+        razorpaySignature,
+        dispatch,
+        navigate,
+    ])
     return (
         < div className="flex flex-col items-center">
             <div className="pt-10 w-full lg:w-[60%]">
@@ -93,6 +108,11 @@ export const Wallet = () => {
                         </div>
                     </CardHeader>
                     <CardContent>
+                        {wallet.error && (
+                            <p role="alert" className="mb-4 text-sm text-destructive">
+                                {wallet.error}
+                            </p>
+                        )}
                         <div className="flex items-center">
                             {/* <IndianRupee /> */}
                             <span className="text-2xl font-semibold">₹{formatIndianNumber(wallet.userWallet.balance, 2)}</span>

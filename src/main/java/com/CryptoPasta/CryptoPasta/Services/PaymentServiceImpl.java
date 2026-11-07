@@ -10,23 +10,24 @@ import com.razorpay.Payment;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
-import com.stripe.Stripe;
+import com.razorpay.Utils;
 import com.stripe.exception.StripeException;
-import com.stripe.model.checkout.Session;
-import com.stripe.param.checkout.SessionCreateParams;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.UUID;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
     @Autowired
     private PaymentOrderRepository paymentOrderRepository;
-
-    @Value("${stripe.api.key}")
-    private String stripeApiKey;
 
     @Value("${razorpay.api.key}")
     private String razorPayApiKey;
@@ -35,8 +36,11 @@ public class PaymentServiceImpl implements PaymentService {
     private String razorPayApiSecretKey;
 
     @Override
-    public PaymentOrder getPaymentOrderByIdForUpdate(Long id) throws Exception {
-        return paymentOrderRepository.findByIdForUpdate(id).orElseThrow(() -> new Exception("Payment order not found!"));
+    @Transactional
+    public PaymentOrder getPaymentOrderByIdForUpdate(Long id) {
+        return paymentOrderRepository.findByIdForUpdate(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment order not found.")
+        );
     }
 
     @Override
@@ -55,51 +59,128 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Boolean proceedPaymentOrder(PaymentOrder paymentOrder, String paymentId) throws RazorpayException {
-        if (paymentOrder.getStatus() == null) {
-            paymentOrder.setStatus(PaymentOrderStatus.PENDING);
+    @Transactional
+    public Boolean proceedPaymentOrder(
+            PaymentOrder paymentOrder,
+            String paymentId,
+            String paymentLinkId,
+            String paymentLinkReferenceId,
+            String paymentLinkStatus,
+            String signature
+    ) {
+        if (paymentOrder.getPaymentMethod() != PaymentMethod.RAZORPAY) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Stripe top-ups are temporarily disabled."
+            );
         }
 
-        if (paymentOrder.getStatus().equals(PaymentOrderStatus.PENDING)) {
-            if (paymentOrder.getPaymentMethod().equals(PaymentMethod.RAZORPAY)) {
-                RazorpayClient razorpayClient = new RazorpayClient(razorPayApiKey, razorPayApiSecretKey);
-                Payment payment = razorpayClient.payments.fetch(paymentId);
-                String status = payment.get("status");
+        if (paymentOrder.getStatus() != PaymentOrderStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This payment order is not pending."
+            );
+        }
 
-                if (status.equals("captured")) {
-                    paymentOrder.setStatus(PaymentOrderStatus.SUCCESS);
-                    paymentOrderRepository.save(paymentOrder);
-                    return true;
-                }
+        if (paymentId == null || paymentId.isBlank()
+                || paymentLinkId == null || paymentLinkId.isBlank()
+                || paymentLinkReferenceId == null || paymentLinkReferenceId.isBlank()
+                || paymentLinkStatus == null || paymentLinkStatus.isBlank()
+                || signature == null || signature.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay callback details are incomplete.");
+        }
 
-                paymentOrder.setStatus(PaymentOrderStatus.FAILED);
-                paymentOrderRepository.save(paymentOrder);
-                return false;
+        if (!paymentLinkId.equals(paymentOrder.getRazorpayPaymentLinkId())
+                || !paymentLinkReferenceId.equals(paymentOrder.getRazorpayReferenceId())
+                || !"paid".equals(paymentLinkStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay callback does not match this payment order.");
+        }
+
+        JSONObject callback = new JSONObject();
+        callback.put("razorpay_payment_id", paymentId);
+        callback.put("payment_link_id", paymentLinkId);
+        callback.put("payment_link_reference_id", paymentLinkReferenceId);
+        callback.put("payment_link_status", paymentLinkStatus);
+        callback.put("razorpay_signature", signature);
+
+        try {
+            if (!Utils.verifyPaymentLink(callback, razorPayApiSecretKey)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay callback signature is invalid.");
             }
-
-            paymentOrder.setStatus(PaymentOrderStatus.SUCCESS);
-            paymentOrderRepository.save(paymentOrder);
-            return true;
+        } catch (RazorpayException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay callback signature is invalid.");
         }
 
-        return false;
+        if (paymentOrder.getAmount() == null || paymentOrder.getAmount() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment amount is invalid.");
+        }
+
+        long expectedAmountInPaise;
+        try {
+            expectedAmountInPaise = Math.multiplyExact(paymentOrder.getAmount(), 100L);
+        } catch (ArithmeticException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment amount is invalid.");
+        }
+
+        try {
+            RazorpayClient razorpayClient = new RazorpayClient(razorPayApiKey, razorPayApiSecretKey);
+            PaymentLink paymentLink = razorpayClient.paymentLink.fetch(paymentLinkId);
+            Payment payment = razorpayClient.payments.fetch(paymentId);
+
+            if (!"paid".equals(paymentLink.get("status"))
+                    || !"INR".equals(paymentLink.get("currency"))
+                    || !hasAmount(paymentLink.get("amount"), expectedAmountInPaise)
+                    || !hasAmount(paymentLink.get("amount_paid"), expectedAmountInPaise)
+                    || !paymentLinkReferenceId.equals(paymentLink.get("reference_id"))
+                    || !"captured".equals(payment.get("status"))
+                    || !"INR".equals(payment.get("currency"))
+                    || !hasAmount(payment.get("amount"), expectedAmountInPaise)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay payment details do not match this order.");
+            }
+        } catch (RazorpayException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Unable to verify the payment with Razorpay."
+            );
+        }
+
+        if (paymentOrderRepository.existsByRazorpayPaymentId(paymentId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This Razorpay payment was already used.");
+        }
+
+        paymentOrder.setRazorpayPaymentId(paymentId);
+        paymentOrder.setStatus(PaymentOrderStatus.SUCCESS);
+        try {
+            paymentOrderRepository.saveAndFlush(paymentOrder);
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This Razorpay payment was already used.");
+        }
+        return true;
     }
 
     @Override
-    public PaymentResponse createRazorpayPaymentLink(User user, Long amount, Long orderId) throws RazorpayException {
-        long amountInPaise = amount * 100;
+    public PaymentResponse createRazorpayPaymentLink(PaymentOrder paymentOrder) throws RazorpayException {
+        long amountInPaise;
+        try {
+            amountInPaise = Math.multiplyExact(paymentOrder.getAmount(), 100L);
+        } catch (ArithmeticException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Top-up amount is too large.");
+        }
+
+        String referenceId = "cp_" + UUID.randomUUID();
+        paymentOrder.setRazorpayReferenceId(referenceId);
+        paymentOrderRepository.saveAndFlush(paymentOrder);
 
         try {
             RazorpayClient razorpay = new RazorpayClient(razorPayApiKey, razorPayApiSecretKey);
-
             JSONObject paymentLinkRequest = new JSONObject();
             paymentLinkRequest.put("amount", amountInPaise);
             paymentLinkRequest.put("currency", "INR");
-            paymentLinkRequest.put("reference_id", orderId.toString());
+            paymentLinkRequest.put("reference_id", referenceId);
 
             JSONObject customer = new JSONObject();
-            customer.put("name", user.getFullName());
-            customer.put("email", user.getEmail());
+            customer.put("name", paymentOrder.getUser().getFullName());
+            customer.put("email", paymentOrder.getUser().getEmail());
             paymentLinkRequest.put("customer", customer);
 
             JSONObject notify = new JSONObject();
@@ -107,30 +188,45 @@ public class PaymentServiceImpl implements PaymentService {
             paymentLinkRequest.put("notify", notify);
 
             paymentLinkRequest.put("reminder_enable", true);
-            paymentLinkRequest.put("callback_url", "http://localhost:5173/wallet?order_id=" + orderId);
+            paymentLinkRequest.put(
+                    "callback_url",
+                    "http://localhost:5173/wallet?order_id=" + paymentOrder.getId()
+            );
             paymentLinkRequest.put("callback_method", "get");
 
             PaymentLink payment = razorpay.paymentLink.create(paymentLinkRequest);
+            String paymentLinkId = payment.get("id");
+            String paymentUrl = payment.get("short_url");
+            if (paymentLinkId == null || paymentLinkId.isBlank() || paymentUrl == null || paymentUrl.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Razorpay did not return a valid payment link."
+                );
+            }
+
+            paymentOrder.setRazorpayPaymentLinkId(paymentLinkId);
+            paymentOrderRepository.saveAndFlush(paymentOrder);
 
             PaymentResponse response = new PaymentResponse();
-            response.setPaymentUrl(payment.get("short_url"));
+            response.setPaymentUrl(paymentUrl);
             return response;
         } catch (RazorpayException e) {
-            System.out.println("Error creating payment link: " + e.getMessage());
-            throw new RazorpayException(e.getMessage());
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Unable to create a payment link with Razorpay."
+            );
         }
     }
 
     @Override
     public PaymentResponse createStripePaymentLink(User user, Long amount, Long orderId) throws StripeException {
-        Stripe.apiKey = stripeApiKey;
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Stripe top-ups are temporarily disabled."
+        );
+    }
 
-        SessionCreateParams params = SessionCreateParams.builder().addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD).setMode(SessionCreateParams.Mode.PAYMENT).setSuccessUrl("http://localhost:5173/wallet?order_id=" + orderId).setCancelUrl("http://localhost:5173/payment/cancel").addLineItem(SessionCreateParams.LineItem.builder().setQuantity(1L).setPriceData(SessionCreateParams.LineItem.PriceData.builder().setCurrency("inr").setUnitAmount(amount * 100).setProductData(SessionCreateParams.LineItem.PriceData.ProductData.builder().setName("Top up wallet").build()).build()).build()).build();
-
-        Session session = Session.create(params);
-
-        PaymentResponse response = new PaymentResponse();
-        response.setPaymentUrl(session.getUrl());
-        return response;
+    private boolean hasAmount(Object amount, long expectedAmount) {
+        return amount instanceof Number number && number.longValue() == expectedAmount;
     }
 }

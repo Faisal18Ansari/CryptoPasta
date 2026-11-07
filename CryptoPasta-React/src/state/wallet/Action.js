@@ -48,7 +48,16 @@ export const getWalletTransactions =
         };
 
 export const depositMoney =
-    ({ jwt, orderId, paymentId, navigate }) =>
+    ({
+        jwt,
+        orderId,
+        paymentId,
+        paymentLinkId,
+        paymentLinkReferenceId,
+        paymentLinkStatus,
+        signature,
+        navigate,
+    }) =>
         async (dispatch) => {
             dispatch({ type: types.DEPOSIT_MONEY_REQUEST });
 
@@ -56,7 +65,11 @@ export const depositMoney =
                 const response = await api.put(`/api/wallet/deposit`, null, {
                     params: {
                         order_id: orderId,
-                        payment_id: paymentId,
+                        razorpay_payment_id: paymentId,
+                        razorpay_payment_link_id: paymentLinkId,
+                        razorpay_payment_link_reference_id: paymentLinkReferenceId,
+                        razorpay_payment_link_status: paymentLinkStatus,
+                        razorpay_signature: signature,
                     },
                     ...getAuthConfig(jwt),
                 });
@@ -69,9 +82,16 @@ export const depositMoney =
                 console.log(response.data);
             } catch (error) {
                 console.error(error);
+                const responseData = error.response?.data;
+                const message =
+                    responseData?.detail ??
+                    responseData?.message ??
+                    error.message ??
+                    "Unable to verify this payment.";
+
                 dispatch({
                     type: types.DEPOSIT_MONEY_FAILURE,
-                    error: error.message,
+                    error: message,
                 });
             }
         };
@@ -95,10 +115,16 @@ export const paymentHandler = ({ jwt, amount, paymentMethod }) => async (dispatc
         //     payload: response.data
         // });
     } catch (error) {
-        console.log("error", error);
+        const responseData = error.response?.data;
+        const message =
+            responseData?.detail ??
+            responseData?.message ??
+            error.message ??
+            "Unable to start the payment.";
+
         dispatch({
             type: types.DEPOSIT_MONEY_FAILURE,
-            error: error.message
+            error: message
         });
     }
 };

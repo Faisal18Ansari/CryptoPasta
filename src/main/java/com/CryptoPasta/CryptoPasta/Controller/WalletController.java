@@ -73,7 +73,11 @@ public class WalletController {
     public ResponseEntity<Wallet> addBalanceToWallet(
             @RequestHeader("authorization") String jwt,
             @RequestParam(name = "order_id") Long orderId,
-            @RequestParam(name = "payment_id") String paymentId) throws Exception {
+            @RequestParam(name = "razorpay_payment_id") String paymentId,
+            @RequestParam(name = "razorpay_payment_link_id") String paymentLinkId,
+            @RequestParam(name = "razorpay_payment_link_reference_id") String paymentLinkReferenceId,
+            @RequestParam(name = "razorpay_payment_link_status") String paymentLinkStatus,
+            @RequestParam(name = "razorpay_signature") String signature) throws Exception {
 
         User user = userService.findUserProfileByJwt(jwt);
         PaymentOrder paymentOrder = paymentService.getPaymentOrderByIdForUpdate(orderId);
@@ -85,21 +89,28 @@ public class WalletController {
             );
         }
 
-        Wallet wallet = walletService.getUserWallet(user);
+        paymentService.proceedPaymentOrder(
+                paymentOrder,
+                paymentId,
+                paymentLinkId,
+                paymentLinkReferenceId,
+                paymentLinkStatus,
+                signature
+        );
+
+        Wallet wallet = walletService.getUserWalletForUpdate(user);
         if (wallet.getBalance() == null) {
             wallet.setBalance(BigDecimal.ZERO);
         }
 
-        if (paymentService.proceedPaymentOrder(paymentOrder, paymentId)) {
-            wallet = walletService.addBalance(wallet, paymentOrder.getAmount());
-            transactionService.createTransaction(
-                    wallet,
-                    WalletTransactionType.ADD_MONEY,
-                    paymentId,
-                    "Deposit via " + paymentOrder.getPaymentMethod(),
-                    paymentOrder.getAmount()
-            );
-        }
+        wallet = walletService.addBalance(wallet, paymentOrder.getAmount());
+        transactionService.createTransaction(
+                wallet,
+                WalletTransactionType.ADD_MONEY,
+                paymentId,
+                "Deposit via " + paymentOrder.getPaymentMethod(),
+                paymentOrder.getAmount()
+        );
 
         return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
     }

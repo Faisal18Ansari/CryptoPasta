@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 //@RequestMapping("/api")
@@ -25,22 +26,27 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> paymentHandler(
             @PathVariable PaymentMethod paymentMethod,
             @PathVariable Long amount,
-            @RequestHeader("Authorization") String jwt) throws
-            Exception,
-            RazorpayException,
-            StripeException {
+            @RequestHeader("Authorization") String jwt) throws Exception, RazorpayException {
+
+        if (paymentMethod != PaymentMethod.RAZORPAY) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Stripe top-ups are temporarily disabled."
+            );
+        }
+
+        if (amount == null || amount <= 0 || amount > Long.MAX_VALUE / 100) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Top-up amount must be a positive whole number of rupees."
+            );
+        }
 
         User user = userService.findUserProfileByJwt(jwt);
 
-        PaymentResponse paymentResponse;
-
         PaymentOrder order = paymentService.createOrder(user, amount, paymentMethod);
-
-        if (paymentMethod.equals(PaymentMethod.RAZORPAY)) {
-            paymentResponse = paymentService.createRazorpayPaymentLink(user, amount, order.getId());
-        } else {
-            paymentResponse = paymentService.createStripePaymentLink(user, amount, order.getId());
-        }
+        PaymentResponse paymentResponse =
+                paymentService.createRazorpayPaymentLink(order);
         return new ResponseEntity<>(paymentResponse, HttpStatus.CREATED);
     }
 
