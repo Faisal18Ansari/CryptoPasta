@@ -17,11 +17,18 @@ export const payOrder = ({ jwt, orderData, amount }) => async (dispatch) => {
         console.log("Order Success", response.data);
         return true;
     } catch (error) {
-        console.log("error", error)
+        const responseData = error.response?.data;
+        const message =
+            responseData?.detail ??
+            responseData?.message ??
+            error.message ??
+            "Order failed.";
+
         dispatch({
             type: types.PAY_ORDER_FAILURE,
-            error: error.message,
+            error: message,
         });
+
         return false;
     }
 };

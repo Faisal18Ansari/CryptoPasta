@@ -166,11 +166,17 @@ public class WalletServiceImpl implements WalletService {
     public Wallet payOrderAmount(Order order, User user) throws Exception {
         Wallet wallet = getUserWallet(user);
         if (order.getOrderType().equals(OrderType.BUY)) {
-            BigDecimal newBalance = wallet.getBalance().subtract(order.getPrice());
-            if (newBalance.compareTo(order.getPrice()) < 0) {
-                throw new Exception("Insufficient balance for this transaction!");
+            BigDecimal balance = wallet.getBalance();
+            BigDecimal orderPrice = order.getPrice();
+
+            if (balance.compareTo(orderPrice) < 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Insufficient balance for this transaction."
+                );
             }
-            wallet.setBalance(newBalance);
+
+            wallet.setBalance(balance.subtract(orderPrice));
         } else {
             BigDecimal newBalance = wallet.getBalance().add(order.getPrice());
             wallet.setBalance(newBalance);

@@ -6,7 +6,7 @@ import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
 import com.CryptoPasta.CryptoPasta.Model.*;
 import com.CryptoPasta.CryptoPasta.Repository.OrderItemRepository;
 import com.CryptoPasta.CryptoPasta.Repository.OrderRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -61,7 +61,7 @@ public class OrderServiceImpl implements OrderService {
         return orderItemRepository.save(orderItem);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order buyAsset(Coin coin, double quantity, User user) throws Exception {
         if (quantity <= 0) {
             throw new Exception("Quantity should be minimum 1!");
@@ -93,7 +93,7 @@ public class OrderServiceImpl implements OrderService {
         return saveOrder;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Order sellAsset(Coin coin, double quantity, User user) throws Exception {
         if (quantity <= 0) {
             throw new Exception("Quantity should be minimum 1!");
@@ -130,7 +130,7 @@ public class OrderServiceImpl implements OrderService {
         throw new Exception("Asset not found!");
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public Order processOrder(Coin coin, double quantity, OrderType orderType, User user) throws Exception {
         if (orderType.equals(OrderType.BUY)) {
