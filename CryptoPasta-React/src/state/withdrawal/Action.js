@@ -7,19 +7,34 @@ const getAuthConfig = (jwt = localStorage.getItem("jwt")) => ({
 
 export const withdrawalRequest = ({ amount, jwt }) => async dispatch => {
   dispatch({ type: WITHDRAWAL_REQUEST });
-  try {
-    const response = await api.post(`/api/withdrawal/${amount}`, null, getAuthConfig(jwt));
 
-    console.log("withdrawal ---- ", response.data)
+  try {
+    const response = await api.post(
+      `/api/withdrawal/${amount}`,
+      null,
+      getAuthConfig(jwt)
+    );
+
     dispatch({
       type: WITHDRAWAL_SUCCESS,
       payload: response.data
     });
+
+    return response.data;
   } catch (error) {
+    const responseData = error.response?.data;
+    const message =
+      responseData?.detail ??
+      responseData?.message ??
+      responseData?.error ??
+      error.message;
+
     dispatch({
       type: WITHDRAWAL_FAILURE,
-      payload: error.message
+      payload: typeof message === "string" ? message : "Withdrawal request failed."
     });
+
+    return null;
   }
 };
 

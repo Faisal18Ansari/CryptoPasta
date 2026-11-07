@@ -28,12 +28,12 @@ public class WithdrawalController {
     private TransactionService transactionService;
 
     @PostMapping("/api/withdrawal/{amount}")
-    public ResponseEntity<?> withdrawalRequest(@PathVariable Long amount, @RequestHeader("Authorization") String jwt) throws Exception {
+    public ResponseEntity<?> withdrawalRequest(
+            @PathVariable Long amount,
+            @RequestHeader("Authorization") String jwt
+    ) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
-        Wallet userWallet = walletService.getUserWallet(user);
         Withdrawal withdrawal = withdrawalService.requestMyWithdrawal(amount, user);
-        walletService.addBalance(userWallet, -withdrawal.getAmount());
-        WalletTransaction walletTransaction = transactionService.createTransaction(userWallet, WalletTransactionType.WITHDRAWAL, null, "bank account withdrawal", withdrawal.getAmount());
         return new ResponseEntity<>(withdrawal, HttpStatus.OK);
     }
 

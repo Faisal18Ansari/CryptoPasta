@@ -2,49 +2,90 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { getPaymentDetails, withdrawalRequest } from "@/state/withdrawal/Action";
-import { DialogClose } from "@/components/ui/dialog";
+import {
+    getPaymentDetails,
+    withdrawalRequest
+} from "@/state/withdrawal/Action";
+import {
+    getUserWallet,
+    getWalletTransactions
+} from "@/state/wallet/Action";
 import { formatIndianNumber } from "@/lib/utils";
 
 const WithdrawalRequest = () => {
     const dispatch = useDispatch();
     const withdrawal = useSelector(state => state.withdrawal);
     const wallet = useSelector(state => state.wallet);
+    const paymentDetails = withdrawal.paymentDetails;
     const availableBalance = wallet.userWallet?.balance;
     const balance = Number(availableBalance ?? 0);
+
     const [amount, setAmount] = React.useState("");
     const [error, setError] = React.useState("");
+    const [success, setSuccess] = React.useState("");
+    const [submitting, setSubmitting] = React.useState(false);
 
     React.useEffect(() => {
         dispatch(getPaymentDetails({ jwt: localStorage.getItem("jwt") }));
     }, [dispatch]);
 
-    const handleChange = (event) => {
+    const handleChange = event => {
         setAmount(event.target.value);
         setError("");
+        setSuccess("");
     };
-    const handleSubmit = (event) => {
+
+    const handleSubmit = async event => {
+        event.preventDefault();
+        setError("");
+        setSuccess("");
+
         const requestedAmount = Number(amount);
 
-        if (!amount || !Number.isFinite(requestedAmount) || requestedAmount <= 0) {
-            event.preventDefault();
-            setError("Enter an amount greater than zero.");
+        if (!amount || !Number.isSafeInteger(requestedAmount) || requestedAmount <= 0) {
+            setError("Enter a whole-number amount greater than zero.");
+            return;
+        }
+
+        if (availableBalance == null) {
+            setError("Your wallet balance is still loading. Try again shortly.");
+            return;
+        }
+
+        if (!paymentDetails) {
+            setError("Add your bank payment details before requesting a withdrawal.");
             return;
         }
 
         if (requestedAmount > balance) {
-            event.preventDefault();
             setError("The withdrawal amount exceeds your available balance.");
             return;
         }
 
-        dispatch(withdrawalRequest({
-            amount: requestedAmount,
-            jwt: localStorage.getItem("jwt")
-        }));
-    }
+        const jwt = localStorage.getItem("jwt");
+        setSubmitting(true);
+
+        try {
+            const result = await dispatch(withdrawalRequest({
+                amount: requestedAmount,
+                jwt
+            }));
+
+            if (result) {
+                setAmount("");
+                setSuccess("Withdrawal request submitted and is pending review.");
+                dispatch(getUserWallet(jwt));
+                dispatch(getWalletTransactions({ jwt }));
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const visibleError = error || withdrawal.error;
+
     return (
-        <div className="space-y-6 pt-4">
+        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
             <div className="flex w-full items-center justify-between rounded-md border bg-sidebar px-5 py-4 text-xl font-bold">
                 <p>Available balance</p>
                 <p>
@@ -61,39 +102,60 @@ const WithdrawalRequest = () => {
 
                 <div className="flex w-full max-w-sm items-center rounded-md border px-4">
                     <span className="text-2xl">₹</span>
-
                     <Input
                         onChange={handleChange}
                         value={amount}
                         type="number"
                         min="1"
+                        step="1"
                         max={balance}
                         placeholder="9000"
-                        className="mx-auto !w-52 flex-none bg-transparent border-none py-6 text-center text-2xl outline-none focus-visible:ring-0"
+                        className="mx-auto !w-52 flex-none border-none bg-transparent py-6 text-center text-2xl outline-none focus-visible:ring-0"
                     />
                 </div>
-                {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
             </div>
+
             <div>
                 <p className="pb-2">Transfer To</p>
-                <div className="flex items-center gap-5 border px-5 py-2 rounded-md">
-                    <img src="https://cdn.pixabay.com/photo/2015/10/14/18/43/bank-988164_1280.png" alt="" className="h-8 w-8" />
+                <div className="flex items-center gap-5 rounded-md border px-5 py-2">
+                    <img
+                        src="https://cdn.pixabay.com/photo/2015/10/14/18/43/bank-988164_1280.png"
+                        alt=""
+                        className="h-8 w-8"
+                    />
                     <div>
                         <p className="text-xl font-bold">
-                            {withdrawal.paymentDetails?.bankName}
+                            {paymentDetails?.bankName || "No bank account added"}
                         </p>
-                        <p className="text-xs">
-                            Account ending in {String(withdrawal.paymentDetails?.accountNumber ?? "").slice(-4)}
-                        </p>
+                        {paymentDetails?.accountNumber && (
+                            <p className="text-xs">
+                                Account ending in {String(paymentDetails.accountNumber).slice(-4)}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
-            <DialogClose asChild>
-                <Button onClick={handleSubmit} className="w-full py-7 text-xl">
-                    Withdraw
-                </Button>
-            </DialogClose>
-        </div>
+
+            {visibleError && (
+                <p role="alert" className="text-sm text-destructive">
+                    {visibleError}
+                </p>
+            )}
+
+            {success && (
+                <p role="status" className="text-sm text-green-600">
+                    {success}
+                </p>
+            )}
+
+            <Button
+                type="submit"
+                disabled={!paymentDetails || submitting}
+                className="w-full py-7 text-xl"
+            >
+                {submitting ? "Submitting..." : "Withdraw"}
+            </Button>
+        </form>
     );
 };
 
