@@ -14,7 +14,7 @@ public interface WalletService {
 
     Wallet findByWalletId(Long id) throws Exception;
 
-    Wallet walletToWalletTransfer(User sender, Wallet receiver, Long money) throws Exception;
+    Wallet walletToWalletTransfer(User sender, Long receiverWalletId, Long money) throws Exception;
 
     Wallet payOrderAmount(Order order, User user) throws Exception;
 

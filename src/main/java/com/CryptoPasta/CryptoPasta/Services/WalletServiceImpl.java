@@ -8,9 +8,12 @@ import com.CryptoPasta.CryptoPasta.Repository.WalletRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.text.Bidi;
 import java.util.Optional;
 
 @Service
@@ -18,6 +21,9 @@ public class WalletServiceImpl implements WalletService {
 
     @Autowired
     private WalletRepository walletRepository;
+
+    @Autowired
+    private TransactionService transactionService;
 
     @Override
     public Wallet createWallet(User user) {
@@ -66,20 +72,94 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    public Wallet walletToWalletTransfer(User sender, Wallet receiver, Long money) throws Exception {
-        Wallet senderWallet = getUserWallet(sender);
-        if (senderWallet.getBalance().compareTo(BigDecimal.valueOf(money)) < 0) {
-            throw new Exception("Insufficient Balance!");
+    @Transactional(rollbackFor = Exception.class)
+    public Wallet walletToWalletTransfer(User sender, Long receiverWalletId, Long money) throws Exception {
+        if (money == null || money <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Transfer amount must be greater than zero."
+            );
         }
-        BigDecimal senderBalance = senderWallet.getBalance().subtract(BigDecimal.valueOf(money));
-        senderWallet.setBalance(senderBalance);
-        walletRepository.save(senderWallet);
 
-        BigDecimal receiverBalance = receiver.getBalance().add(BigDecimal.valueOf(money));
-        receiver.setBalance(receiverBalance);
-        walletRepository.save(receiver);
+        if (receiverWalletId == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Receiver wallet ID is required."
+            );
+        }
 
-        return senderWallet;
+        Wallet senderWallet = getUserWallet(sender);
+        Long senderWalletId = senderWallet.getId();
+
+        if (senderWalletId.equals(receiverWalletId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "You cannot transfer money to your own wallet."
+            );
+        }
+
+        Long firstWalletId = Math.min(senderWalletId, receiverWalletId);
+        Long secondWalletId = Math.max(senderWalletId, receiverWalletId);
+
+        Wallet firstWallet = findWalletForUpdate(firstWalletId);
+        Wallet secondWallet = findWalletForUpdate(secondWalletId);
+
+        Wallet lockedSender = senderWalletId.equals(firstWalletId) ? firstWallet : secondWallet;
+        Wallet lockedReceiver = receiverWalletId.equals(firstWalletId) ? firstWallet : secondWallet;
+
+        if (lockedReceiver.getUser() != null
+                && lockedReceiver.getUser().getId() == sender.getId()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "You cannot transfer money to your own wallet."
+            );
+        }
+
+        if (lockedSender.getBalance() == null || lockedReceiver.getBalance() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Wallet balance is not initialized."
+            );
+        }
+
+        BigDecimal transferAmount = BigDecimal.valueOf(money);
+        if (lockedSender.getBalance().compareTo(transferAmount) < 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Insufficient balance."
+            );
+        }
+
+        lockedSender.setBalance(lockedSender.getBalance().subtract(transferAmount));
+        lockedReceiver.setBalance(lockedReceiver.getBalance().add(transferAmount));
+
+        walletRepository.save(lockedSender);
+        walletRepository.save(lockedReceiver);
+
+        transactionService.createTransaction(
+                lockedSender,
+                WalletTransactionType.WALLET_TRANSFER,
+                String.valueOf(lockedReceiver.getId()),
+                "Transfer sent to wallet #" + lockedReceiver.getId(),
+                -money
+        );
+        transactionService.createTransaction(
+                lockedReceiver,
+                WalletTransactionType.WALLET_TRANSFER,
+                String.valueOf(lockedSender.getId()),
+                "Transfer received from wallet #" + lockedSender.getId(),
+                money
+        );
+
+        return lockedSender;
+    }
+
+    private Wallet findWalletForUpdate(Long walletId) {
+        return walletRepository.findByIdForUpdate(walletId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Wallet not found."
+                ));
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.CryptoPasta.CryptoPasta.Controller;
 
+
 import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
 import com.CryptoPasta.CryptoPasta.Model.*;
 import com.CryptoPasta.CryptoPasta.Response.PaymentResponse;
@@ -37,24 +38,25 @@ public class WalletController {
     }
 
     @PutMapping("/api/wallet/{walletId}/transfer")
-    public ResponseEntity<Wallet> walletToWalletTransfer(@RequestHeader("authorization") String jwt, @PathVariable Long walletId, @RequestBody WalletTransaction req) throws Exception {
+    public ResponseEntity<Wallet> walletToWalletTransfer(
+            @RequestHeader("Authorization") String jwt,
+            @PathVariable Long walletId,
+            @RequestBody(required = false) WalletTransaction req
+    ) throws Exception {
+        if (req == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Request body is required."
+            );
+        }
+
         User senderUser = userService.findUserProfileByJwt(jwt);
-        Wallet receiverWallet = walletService.findByWalletId(walletId);
-        Wallet wallet = walletService.walletToWalletTransfer(senderUser, receiverWallet, req.getAmount());
-        transactionService.createTransaction(
-                wallet,
-                WalletTransactionType.WALLET_TRANSFER,
-                String.valueOf(receiverWallet.getId()),
-                "Transfer sent to wallet #" + receiverWallet.getId(),
-                -req.getAmount()
-        );
-        transactionService.createTransaction(
-                receiverWallet,
-                WalletTransactionType.WALLET_TRANSFER,
-                String.valueOf(wallet.getId()),
-                "Transfer received from wallet #" + wallet.getId(),
+        Wallet wallet = walletService.walletToWalletTransfer(
+                senderUser,
+                walletId,
                 req.getAmount()
         );
+
         return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
     }
 
