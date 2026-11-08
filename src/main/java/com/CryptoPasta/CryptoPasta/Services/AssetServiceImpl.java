@@ -1,11 +1,14 @@
 package com.CryptoPasta.CryptoPasta.Services;
-
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import com.CryptoPasta.CryptoPasta.Model.Asset;
 import com.CryptoPasta.CryptoPasta.Model.Coin;
 import com.CryptoPasta.CryptoPasta.Model.User;
 import com.CryptoPasta.CryptoPasta.Repository.AssetRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -33,7 +36,10 @@ public class AssetServiceImpl implements AssetService {
 
     @Override
     public Asset getAssetByUserIdAndId(Long userId, Long assetId) {
-        return null;
+        return assetRepository.findByIdAndUserId(assetId, userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Asset not found."));
     }
 
     @Override

@@ -12,7 +12,7 @@ public interface OrderService {
 
     Order createOrder(User user, OrderItem orderItem, OrderType orderType, double executionPrice);
 
-    Order getOrderById(Long orderId) throws Exception;
+    Order getOrderById(Long orderId);
 
     List<Order> getAllOrdersOfUser(Long userId, OrderType orderType, String assetSymbol);
 

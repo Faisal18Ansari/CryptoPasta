@@ -17,13 +17,12 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-        select a from Asset a
-        where a.user.id = :userId and a.coin.id = :coinId
-        """)
+            select a from Asset a
+            where a.user.id = :userId and a.coin.id = :coinId
+            """)
     Optional<Asset> findByUserIdAndCoinIdForUpdate(
             @Param("userId") Long userId,
-            @Param("coinId") String coinId
-    );
+            @Param("coinId") String coinId);
 
-
+    Optional<Asset> findByIdAndUserId(Long assetId, Long userId);
 }

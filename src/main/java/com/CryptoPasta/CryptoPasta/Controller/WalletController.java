@@ -26,8 +26,8 @@ public class WalletController {
     private WalletService walletService;
     @Autowired
     private UserService userService;
-    @Autowired
-    private OrderService orderService;
+    // @Autowired
+    // private OrderService orderService;
     @Autowired
     private PaymentService paymentService;
     @Autowired
@@ -55,14 +55,14 @@ public class WalletController {
         return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
     }
 
-    @PutMapping("/api/wallet/order/{orderID}/pay")
-    public ResponseEntity<Wallet> payOrderPayment(@RequestHeader("authorization") String jwt,
-            @PathVariable Long orderId) throws Exception {
-        User user = userService.findUserProfileByJwt(jwt);
-        Order order = orderService.getOrderById(orderId);
-        Wallet wallet = walletService.payOrderAmount(order, user);
-        return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
-    }
+    // @PutMapping("/api/wallet/order/{orderID}/pay")
+    // public ResponseEntity<Wallet> payOrderPayment(@RequestHeader("authorization") String jwt,
+    //         @PathVariable Long orderId) throws Exception {
+    //     User user = userService.findUserProfileByJwt(jwt);
+    //     Order order = orderService.getOrderById(orderId);
+    //     Wallet wallet = walletService.payOrderAmount(order, user);
+    //     return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
+    // }
 
     @Transactional
     @PutMapping("/api/wallet/deposit")

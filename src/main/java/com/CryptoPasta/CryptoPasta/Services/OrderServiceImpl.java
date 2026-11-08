@@ -47,8 +47,11 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Order getOrderById(Long orderId) throws Exception {
-        return orderRepository.findById(orderId).orElseThrow(() -> new Exception("Order not Found!"));
+    public Order getOrderById(Long orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Order not found."));
     }
 
     @Override
@@ -86,14 +89,12 @@ public class OrderServiceImpl implements OrderService {
                 WalletTransactionType.BUY_ASSET,
                 null,
                 "Bought " + quantity + " " + coin.getSymbol().toUpperCase(),
-                order.getPrice().longValue()
-        );
+                order.getPrice().longValue());
 
         // CREATE ASSET
         Asset oldAsset = assetService.findAssetByUserIdAndCoinIdForUpdate(
                 order.getUser().getId(),
-                order.getOrderItem().getCoin().getId()
-        );
+                order.getOrderItem().getCoin().getId());
         if (oldAsset == null) {
             Asset newAsset = assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity());
             newAsset.setBuyPrice(executionPrice);
@@ -110,8 +111,7 @@ public class OrderServiceImpl implements OrderService {
         }
         Asset assetToSell = assetService.findAssetByUserIdAndCoinIdForUpdate(
                 user.getId(),
-                coin.getId()
-        );
+                coin.getId());
         if (assetToSell == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Asset not found.");
         }
@@ -136,8 +136,7 @@ public class OrderServiceImpl implements OrderService {
                 WalletTransactionType.SELL_ASSET,
                 null,
                 "Sold " + quantity + " " + coin.getSymbol().toUpperCase(),
-                order.getPrice().longValue()
-        );
+                order.getPrice().longValue());
         Asset updatedAsset = assetService.updateAsset(assetToSell.getId(), -quantity);
         if (updatedAsset.getQuantity() * executionPrice <= 1) {
             assetService.deleteAsset(updatedAsset.getId());

@@ -1,6 +1,5 @@
 package com.CryptoPasta.CryptoPasta.Controller;
 
-
 import com.CryptoPasta.CryptoPasta.Model.Coin;
 import com.CryptoPasta.CryptoPasta.Model.User;
 import com.CryptoPasta.CryptoPasta.Model.Watchlist;
@@ -32,15 +31,17 @@ public class WatchlistController {
     }
 
     @GetMapping("/{watchlistId}")
-    public ResponseEntity<Watchlist> getWatchlistById(@PathVariable Long watchlistId) throws Exception {
-
-        Watchlist watchlist = watchlistService.findById(watchlistId);
-
+    public ResponseEntity<Watchlist> getWatchlistById(
+            @PathVariable Long watchlistId,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findUserProfileByJwt(jwt);
+        Watchlist watchlist = watchlistService.findByIdAndUserId(watchlistId, user.getId());
         return ResponseEntity.ok(watchlist);
     }
 
     @PatchMapping("/add/coin/{coinId}")
-    public ResponseEntity<Coin> addCoinToWatchlist(@RequestHeader("Authorization") String jwt, @PathVariable String coinId) throws Exception {
+    public ResponseEntity<Coin> addCoinToWatchlist(@RequestHeader("Authorization") String jwt,
+            @PathVariable String coinId) throws Exception {
 
         User user = userService.findUserProfileByJwt(jwt);
 

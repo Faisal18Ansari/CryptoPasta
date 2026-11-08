@@ -19,16 +19,18 @@ public class AssetController {
     private UserService userService;
 
     @GetMapping("/{assetId}")
-    public ResponseEntity<Asset> getAssetById(@PathVariable Long assetId) throws Exception {
-        Asset asset = assetService.getAssetById(assetId);
-        return ResponseEntity.ok().body(asset);
+    public ResponseEntity<Asset> getAssetById(
+            @PathVariable Long assetId,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        User user = userService.findUserProfileByJwt(jwt);
+        Asset asset = assetService.getAssetByUserIdAndId(user.getId(), assetId);
+        return ResponseEntity.ok(asset);
     }
 
     @GetMapping("/coin/{coinId}/user")
     public ResponseEntity<Asset> getAssetByUserIdAndCoinId(
             @PathVariable String coinId,
-            @RequestHeader("Authorization") String jwt
-    ) throws Exception {
+            @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Asset asset = assetService.findAssetByUserIdAndCoinId(user.getId(), coinId);
         return ResponseEntity.ok().body(asset);
@@ -36,8 +38,7 @@ public class AssetController {
 
     @GetMapping()
     public ResponseEntity<List<Asset>> getUserAssets(
-            @RequestHeader("Authorization") String jwt
-    ) throws Exception{
+            @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         List<Asset> asset = assetService.getUsersAsset(user.getId());
         return ResponseEntity.ok().body(asset);
