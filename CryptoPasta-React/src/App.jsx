@@ -16,16 +16,19 @@ import Profile from "./page/profile/Profile"
 import WithdrawalAdmin from "./page/admin/WithdrawalAdmin"
 import SearchCoin from "./page/search/SearchCoin"
 import NotFound from "./page/notfound/NotFound"
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
 import Auth from "./page/auth/Auth"
 import { useDispatch, useSelector } from "react-redux"
 import { store } from "./state/Store"
-import { useEffect } from "react"
-import { getUser } from "./state/auth/Action"
+import { useEffect, useRef } from "react"
+import { getUser, logout } from "./state/auth/Action"
 function App() {
   // const [count, setCount] = useState(0)
-  const { auth } = useSelector(store => store);
+  const auth = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const sessionExpiredHandled = useRef(false);
+
   useEffect(() => {
     const jwt = auth.jwt || localStorage.getItem("jwt");
 
@@ -33,6 +36,29 @@ function App() {
 
     dispatch(getUser(jwt));
   }, [auth.jwt, dispatch]);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      if (sessionExpiredHandled.current) return;
+
+      sessionExpiredHandled.current = true;
+      dispatch(logout());
+      navigate("/signin", {
+        replace: true,
+        state: { sessionExpired: true },
+      });
+    };
+
+    window.addEventListener("auth:session-expired", handleSessionExpired);
+    return () => window.removeEventListener("auth:session-expired", handleSessionExpired);
+  }, [dispatch, navigate]);
+
+  useEffect(() => {
+    if (auth.jwt) {
+      sessionExpiredHandled.current = false;
+    }
+  }, [auth.jwt]);
+
   return (
     <>
       {auth.user ? <div>

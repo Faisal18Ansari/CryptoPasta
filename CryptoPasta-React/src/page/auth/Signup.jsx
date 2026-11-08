@@ -34,6 +34,7 @@ const signupSchema = z.object({
 const Signup = ({ onSubmitted }) => {
     const dispatch = useDispatch();
     const authError = useSelector((state) => state.auth.error);
+    const loading = useSelector((state) => state.auth.loading);
     const form = useForm({
         resolver: zodResolver(signupSchema),
         defaultValues: {
@@ -43,10 +44,10 @@ const Signup = ({ onSubmitted }) => {
         }
     })
     const onSubmit = async (data) => {
-        const succeeded = await dispatch(register(data));
+        const result = await dispatch(register(data));
 
-        if (succeeded) {
-            onSubmitted?.();
+        if (result?.success) {
+            onSubmitted?.(result);
         }
     }
 
@@ -105,8 +106,8 @@ const Signup = ({ onSubmitted }) => {
                             : authError.message || "Signup failed. Please try again."}
                     </p>
                 )}
-                <Button type="submit" className="mx-auto mt-6 flex w-[92%]">
-                    Create New Account
+                <Button type="submit" className="mx-auto mt-6 flex w-[92%]" disabled={loading}>
+                    {loading ? "Creating account..." : "Create New Account"}
                 </Button>
             </form>
         </div>
