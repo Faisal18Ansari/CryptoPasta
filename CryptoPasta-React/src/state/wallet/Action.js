@@ -147,9 +147,16 @@ export const transferMoney =
                 console.log("transfer money sent", response.data);
             }
             catch (error) {
+                const responseData = error.response?.data;
+                const message =
+                    responseData?.message ??
+                    responseData?.detail ??
+                    error.message ??
+                    "Transfer failed.";
+
                 dispatch({
                     type: types.TRANSFER_MONEY_FAILURE,
-                    error: error.message
+                    error: message,
                 });
             }
         };

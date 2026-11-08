@@ -1,5 +1,6 @@
 package com.CryptoPasta.CryptoPasta.Controller;
 
+import jakarta.validation.Valid;
 import com.CryptoPasta.CryptoPasta.Domain.OrderType;
 import com.CryptoPasta.CryptoPasta.Model.Coin;
 import com.CryptoPasta.CryptoPasta.Model.Order;
@@ -28,7 +29,7 @@ public class OrderController {
     @PostMapping("/pay")
     public ResponseEntity<Order> payOrderAmount(
             @RequestHeader("Authorization") String jwt,
-            @RequestBody CreateOrderRequest req) throws Exception {
+            @RequestBody @Valid CreateOrderRequest req) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Coin coin = coinService.findById(req.getCoinId());
         double executionPrice = coinService.getCurrentPrice(req.getCoinId());

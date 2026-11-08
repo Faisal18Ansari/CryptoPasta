@@ -1,6 +1,9 @@
 package com.CryptoPasta.CryptoPasta.Controller;
 
-
+import com.CryptoPasta.CryptoPasta.Request.TransferRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.validation.annotation.Validated;
 import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
 import com.CryptoPasta.CryptoPasta.Model.*;
 import com.CryptoPasta.CryptoPasta.Response.PaymentResponse;
@@ -15,7 +18,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 
 @RestController
-//@RequestMapping("/api/wallet")
+@Validated
+// @RequestMapping("/api/wallet")
 public class WalletController {
 
     @Autowired
@@ -40,28 +44,20 @@ public class WalletController {
     @PutMapping("/api/wallet/{walletId}/transfer")
     public ResponseEntity<Wallet> walletToWalletTransfer(
             @RequestHeader("Authorization") String jwt,
-            @PathVariable Long walletId,
-            @RequestBody(required = false) WalletTransaction req
-    ) throws Exception {
-        if (req == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Request body is required."
-            );
-        }
-
+            @PathVariable @Positive(message = "Receiver wallet ID must be greater than zero.") Long walletId,
+            @Valid @RequestBody TransferRequest req) throws Exception {
         User senderUser = userService.findUserProfileByJwt(jwt);
         Wallet wallet = walletService.walletToWalletTransfer(
                 senderUser,
                 walletId,
-                req.getAmount()
-        );
+                req.getAmount());
 
         return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
     }
 
     @PutMapping("/api/wallet/order/{orderID}/pay")
-    public ResponseEntity<Wallet> payOrderPayment(@RequestHeader("authorization") String jwt, @PathVariable Long orderId) throws Exception {
+    public ResponseEntity<Wallet> payOrderPayment(@RequestHeader("authorization") String jwt,
+            @PathVariable Long orderId) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Order order = orderService.getOrderById(orderId);
         Wallet wallet = walletService.payOrderAmount(order, user);
@@ -85,8 +81,7 @@ public class WalletController {
         if (paymentOrder.getUser().getId() != user.getId()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Payment order does not belong to this user"
-            );
+                    "Payment order does not belong to this user");
         }
 
         paymentService.proceedPaymentOrder(
@@ -95,8 +90,7 @@ public class WalletController {
                 paymentLinkId,
                 paymentLinkReferenceId,
                 paymentLinkStatus,
-                signature
-        );
+                signature);
 
         Wallet wallet = walletService.getUserWalletForUpdate(user);
         if (wallet.getBalance() == null) {
@@ -109,8 +103,7 @@ public class WalletController {
                 WalletTransactionType.ADD_MONEY,
                 paymentId,
                 "Deposit via " + paymentOrder.getPaymentMethod(),
-                paymentOrder.getAmount()
-        );
+                paymentOrder.getAmount());
 
         return new ResponseEntity<>(wallet, HttpStatus.ACCEPTED);
     }

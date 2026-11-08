@@ -1,5 +1,7 @@
 package com.CryptoPasta.CryptoPasta.Controller;
 
+import jakarta.validation.constraints.Positive;
+import org.springframework.validation.annotation.Validated;
 import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
 import com.CryptoPasta.CryptoPasta.Model.User;
 import com.CryptoPasta.CryptoPasta.Model.Wallet;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
+@Validated
 public class WithdrawalController {
     @Autowired
     private WithdrawalService withdrawalService;
@@ -29,9 +32,8 @@ public class WithdrawalController {
 
     @PostMapping("/api/withdrawal/{amount}")
     public ResponseEntity<?> withdrawalRequest(
-            @PathVariable Long amount,
-            @RequestHeader("Authorization") String jwt
-    ) throws Exception {
+            @PathVariable @Positive(message = "Withdrawal amount must be greater than zero.") Long amount,
+            @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Withdrawal withdrawal = withdrawalService.requestMyWithdrawal(amount, user);
         return new ResponseEntity<>(withdrawal, HttpStatus.OK);
@@ -40,14 +42,14 @@ public class WithdrawalController {
     @PatchMapping("/api/admin/withdrawal/{id}/proceed/{accept}")
     public ResponseEntity<Withdrawal> proceedWithWithdrawal(
             @PathVariable Long id,
-            @PathVariable boolean accept
-    ) throws Exception {
+            @PathVariable boolean accept) throws Exception {
         Withdrawal withdrawal = withdrawalService.proceedWithWithdrawal(id, accept);
         return new ResponseEntity<>(withdrawal, HttpStatus.OK);
     }
 
     @GetMapping("/api/withdrawal")
-    public ResponseEntity<List<Withdrawal>> getWithdrawalHistory(@RequestHeader("Authorization") String jwt) throws Exception {
+    public ResponseEntity<List<Withdrawal>> getWithdrawalHistory(@RequestHeader("Authorization") String jwt)
+            throws Exception {
 
         User user = userService.findUserProfileByJwt(jwt);
 
@@ -57,7 +59,8 @@ public class WithdrawalController {
     }
 
     @GetMapping("/api/admin/withdrawal")
-    public ResponseEntity<List<Withdrawal>> getAllWithdrawalRequest(@RequestHeader("Authorization") String jwt) throws Exception {
+    public ResponseEntity<List<Withdrawal>> getAllWithdrawalRequest(@RequestHeader("Authorization") String jwt)
+            throws Exception {
 
         User user = userService.findUserProfileByJwt(jwt);
 
