@@ -65,8 +65,9 @@ public class CoinServiceImpl implements CoinService {
             HttpEntity<Void> entity = new HttpEntity<>(coinGeckoHeaders());
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
-//            List<Coin> coinList = objectMapper.readValue(response.getBody(), new TypeReference<List<Coin>>() {
-//            });
+            // List<Coin> coinList = objectMapper.readValue(response.getBody(), new
+            // TypeReference<List<Coin>>() {
+            // });
             return response.getBody();
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new Exception(e.getMessage());
@@ -135,7 +136,8 @@ public class CoinServiceImpl implements CoinService {
     @Override
     public Coin findById(String coinId) throws Exception {
         Optional<Coin> optionalCoin = coinRepository.findById(coinId);
-        if (optionalCoin.isEmpty()) throw new Exception("Coin not found!");
+        if (optionalCoin.isEmpty())
+            throw new Exception("Coin not found!");
         return optionalCoin.get();
     }
 
@@ -153,8 +155,9 @@ public class CoinServiceImpl implements CoinService {
             HttpEntity<Void> entity = new HttpEntity<>(coinGeckoHeaders());
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
-//            List<Coin> coinList = objectMapper.readValue(response.getBody(), new TypeReference<List<Coin>>() {
-//            });
+            // List<Coin> coinList = objectMapper.readValue(response.getBody(), new
+            // TypeReference<List<Coin>>() {
+            // });
             return response.getBody();
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new Exception(e.getMessage());
@@ -170,8 +173,9 @@ public class CoinServiceImpl implements CoinService {
             HttpEntity<Void> entity = new HttpEntity<>(coinGeckoHeaders());
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
-//            List<Coin> coinList = objectMapper.readValue(response.getBody(), new TypeReference<List<Coin>>() {
-//            });
+            // List<Coin> coinList = objectMapper.readValue(response.getBody(), new
+            // TypeReference<List<Coin>>() {
+            // });
             return response.getBody();
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new Exception(e.getMessage());
@@ -205,8 +209,7 @@ public class CoinServiceImpl implements CoinService {
 
         try {
             HttpEntity<Void> entity = new HttpEntity<>(coinGeckoHeaders());
-            ResponseEntity<String> response =
-                    restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             return response.getBody();
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new Exception(e.getMessage());
@@ -222,11 +225,34 @@ public class CoinServiceImpl implements CoinService {
             HttpEntity<Void> entity = new HttpEntity<>(coinGeckoHeaders());
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
-//            List<Coin> coinList = objectMapper.readValue(response.getBody(), new TypeReference<List<Coin>>() {
-//            });
+            // List<Coin> coinList = objectMapper.readValue(response.getBody(), new
+            // TypeReference<List<Coin>>() {
+            // });
             return response.getBody();
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new Exception(e.getMessage());
         }
+    }
+
+    @Override
+    public double getCurrentPrice(String coinId) throws Exception {
+        String response = getMarketData(List.of(coinId));
+        JsonNode marketData = objectMapper.readTree(response);
+
+        if (marketData == null || !marketData.isArray() || marketData.size() == 0) {
+            throw new Exception("Fresh market price is unavailable; order was not placed.");
+        }
+
+        JsonNode priceNode = marketData.get(0).get("current_price");
+        if (priceNode == null || !priceNode.isNumber()) {
+            throw new Exception("CoinGecko returned an invalid market price; order was not placed.");
+        }
+
+        double price = priceNode.asDouble();
+        if (!Double.isFinite(price) || price <= 0) {
+            throw new Exception("CoinGecko returned an invalid market price; order was not placed.");
+        }
+
+        return price;
     }
 }

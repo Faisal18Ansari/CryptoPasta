@@ -28,19 +28,24 @@ public class OrderController {
     @PostMapping("/pay")
     public ResponseEntity<Order> payOrderAmount(
             @RequestHeader("Authorization") String jwt,
-            @RequestBody CreateOrderRequest req
-    ) throws Exception {
+            @RequestBody CreateOrderRequest req) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Coin coin = coinService.findById(req.getCoinId());
-        Order order = orderService.processOrder(coin, req.getQuantity(), req.getOrderType(), user);
+        double executionPrice = coinService.getCurrentPrice(req.getCoinId());
+        Order order = orderService.processOrder(
+                coin,
+                req.getQuantity(),
+                req.getOrderType(),
+                user,
+                req.getClientPrice(),
+                executionPrice);
         return ResponseEntity.ok(order);
     }
 
     @GetMapping("/{orderId}")
     public ResponseEntity<Order> getOrderById(
             @RequestHeader("Authorization") String jwtToken,
-            @PathVariable long orderId
-    ) throws Exception {
+            @PathVariable long orderId) throws Exception {
         User user = userService.findUserProfileByJwt(jwtToken);
         Order order = orderService.getOrderById(orderId);
 
@@ -55,8 +60,7 @@ public class OrderController {
     public ResponseEntity<List<Order>> getAllOrdersOfUser(
             @RequestHeader("Authorization") String jwt,
             @RequestParam(required = false) OrderType orderType,
-            @RequestParam(required = false) String assetSymbol
-    )
+            @RequestParam(required = false) String assetSymbol)
             throws Exception {
         Long userId = userService.findUserProfileByJwt(jwt).getId();
         List<Order> userOrders = orderService.getAllOrdersOfUser(userId, orderType, assetSymbol);

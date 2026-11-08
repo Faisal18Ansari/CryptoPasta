@@ -6,9 +6,11 @@ import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
 import com.CryptoPasta.CryptoPasta.Model.*;
 import com.CryptoPasta.CryptoPasta.Repository.OrderItemRepository;
 import com.CryptoPasta.CryptoPasta.Repository.OrderRepository;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,15 +29,17 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private TransactionService transactionService;
 
+    private static final double MAX_PRICE_DEVIATION_RATIO = 0.02;
+
     @Override
-    public Order createOrder(User user, OrderItem orderItem, OrderType orderType) {
-        double price = orderItem.getCoin().getCurrentPrice() * orderItem.getQuantity();
+    public Order createOrder(User user, OrderItem orderItem, OrderType orderType, double executionPrice) {
+        double totalPrice = executionPrice * orderItem.getQuantity();
 
         Order order = new Order();
         order.setUser(user);
         order.setOrderItem(orderItem);
         order.setOrderType(orderType);
-        order.setPrice(BigDecimal.valueOf(price));
+        order.setPrice(BigDecimal.valueOf(totalPrice));
         order.setTimeStamp(LocalDateTime.now());
         order.setOrderStatus(OrderStatus.PENDING);
 
@@ -62,13 +66,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Order buyAsset(Coin coin, double quantity, User user) throws Exception {
-        if (quantity <= 0) {
+    public Order buyAsset(Coin coin, double quantity, User user, double executionPrice) throws Exception {
+        if (!Double.isFinite(quantity) || quantity <= 0) {
             throw new Exception("Quantity should be minimum 1!");
         }
-        double buyPrice = coin.getCurrentPrice();
+
+        double buyPrice = executionPrice;
         OrderItem orderItem = createOrderItem(coin, quantity, buyPrice, 0);
-        Order order = createOrder(user, orderItem, OrderType.BUY);
+        Order order = createOrder(user, orderItem, OrderType.BUY, executionPrice);
         orderItem.setOrder(order);
         walletService.payOrderAmount(order, user);
         order.setOrderStatus(OrderStatus.SUCCESS);
@@ -83,13 +88,15 @@ public class OrderServiceImpl implements OrderService {
                 "Bought " + quantity + " " + coin.getSymbol().toUpperCase(),
                 order.getPrice().longValue()
         );
-//        CREATE ASSET
+
+        // CREATE ASSET
         Asset oldAsset = assetService.findAssetByUserIdAndCoinIdForUpdate(
                 order.getUser().getId(),
                 order.getOrderItem().getCoin().getId()
         );
         if (oldAsset == null) {
-            assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity());
+            Asset newAsset = assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity());
+            newAsset.setBuyPrice(executionPrice);
         } else {
             assetService.updateAsset(oldAsset.getId(), quantity);
         }
@@ -97,54 +104,85 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Order sellAsset(Coin coin, double quantity, User user) throws Exception {
+    public Order sellAsset(Coin coin, double quantity, User user, double executionPrice) throws Exception {
         if (quantity <= 0) {
             throw new Exception("Quantity should be minimum 1!");
         }
-        double sellPrice = coin.getCurrentPrice();
         Asset assetToSell = assetService.findAssetByUserIdAndCoinIdForUpdate(
                 user.getId(),
                 coin.getId()
         );
-        double buyPrice = assetToSell.getBuyPrice();
-        if (assetToSell != null) {
-            OrderItem orderItem = createOrderItem(coin, quantity, buyPrice, sellPrice);
-            Order order = createOrder(user, orderItem, OrderType.SELL);
-            orderItem.setOrder(order);
-
-            if (assetToSell.getQuantity() >= quantity) {
-                order.setOrderStatus(OrderStatus.SUCCESS);
-                order.setOrderType(OrderType.SELL);
-                Order saveOrder = orderRepository.save(order);
-                walletService.payOrderAmount(order, user);
-                Wallet wallet = walletService.getUserWallet(user);
-                transactionService.createTransaction(
-                        wallet,
-                        WalletTransactionType.SELL_ASSET,
-                        null,
-                        "Sold " + quantity + " " + coin.getSymbol().toUpperCase(),
-                        order.getPrice().longValue()
-                );
-                Asset updatedAsset = assetService.updateAsset(assetToSell.getId(), -quantity);
-                if (updatedAsset.getQuantity() * coin.getCurrentPrice() <= 1) {
-                    assetService.deleteAsset(updatedAsset.getId());
-                }
-                return saveOrder;
-            }
-            throw new Exception("Insufficient quantity to sell!");
+        if (assetToSell == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Asset not found.");
         }
-        throw new Exception("Asset not found!");
+
+        double buyPrice = assetToSell.getBuyPrice();
+        double sellPrice = executionPrice;
+
+        if (assetToSell.getQuantity() < quantity) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient quantity to sell.");
+        }
+
+        OrderItem orderItem = createOrderItem(coin, quantity, buyPrice, sellPrice);
+        Order order = createOrder(user, orderItem, OrderType.SELL, executionPrice);
+        orderItem.setOrder(order);
+        order.setOrderStatus(OrderStatus.SUCCESS);
+        order.setOrderType(OrderType.SELL);
+        Order saveOrder = orderRepository.save(order);
+        walletService.payOrderAmount(order, user);
+        Wallet wallet = walletService.getUserWallet(user);
+        transactionService.createTransaction(
+                wallet,
+                WalletTransactionType.SELL_ASSET,
+                null,
+                "Sold " + quantity + " " + coin.getSymbol().toUpperCase(),
+                order.getPrice().longValue()
+        );
+        Asset updatedAsset = assetService.updateAsset(assetToSell.getId(), -quantity);
+        if (updatedAsset.getQuantity() * executionPrice <= 1) {
+            assetService.deleteAsset(updatedAsset.getId());
+        }
+        return saveOrder;
     }
 
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public Order processOrder(Coin coin, double quantity, OrderType orderType, User user) throws Exception {
-        walletService.getUserWalletForUpdate(user);
-        if (orderType.equals(OrderType.BUY)) {
-            return buyAsset(coin, quantity, user);
-        } else if (orderType.equals(OrderType.SELL)) {
-            return sellAsset(coin, quantity, user);
+    public Order processOrder(
+            Coin coin,
+            double quantity,
+            OrderType orderType,
+            User user,
+            double clientPrice,
+            double executionPrice) throws Exception {
+        if (!Double.isFinite(quantity) || quantity <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity must be greater than zero.");
         }
-        throw new Exception("Invalid Order Type!");
+        if (!Double.isFinite(clientPrice) || clientPrice <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Displayed price is invalid.");
+        }
+        if (!Double.isFinite(executionPrice) || executionPrice <= 0
+                || !Double.isFinite(executionPrice * quantity)) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Fresh market price is invalid.");
+        }
+        if (orderType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order type is required.");
+        }
+
+        double deviation = Math.abs(executionPrice - clientPrice) / clientPrice;
+        if (deviation > MAX_PRICE_DEVIATION_RATIO) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Market price changed by more than 2%. Refresh the quote and try again.");
+        }
+
+        walletService.getUserWalletForUpdate(user);
+        if (orderType == OrderType.BUY) {
+            return buyAsset(coin, quantity, user, executionPrice);
+        }
+        if (orderType == OrderType.SELL) {
+            return sellAsset(coin, quantity, user, executionPrice);
+        }
+
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid order type.");
     }
 }

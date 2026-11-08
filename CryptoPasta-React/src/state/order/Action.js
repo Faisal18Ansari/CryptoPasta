@@ -15,7 +15,7 @@ export const payOrder = ({ jwt, orderData, amount }) => async (dispatch) => {
             amount
         });
         console.log("Order Success", response.data);
-        return true;
+        return response.data;
     } catch (error) {
         const responseData = error.response?.data;
         const message =
@@ -29,7 +29,7 @@ export const payOrder = ({ jwt, orderData, amount }) => async (dispatch) => {
             error: message,
         });
 
-        return false;
+        return null;
     }
 };
 

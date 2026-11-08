@@ -69,16 +69,17 @@ const TradingForm = ({ onOrderSuccess, marketCoin }) => {
                     coinId,
                     quantity: requestedQuantity,
                     orderType,
+                    clientPrice: currentPrice,
                 },
             })
         );
 
         if (succeeded) {
             onOrderSuccess?.({
-                amount: requestedAmount,
+                amount: Number(succeeded.price),
                 coinName: coinDetails?.name || coinDetails?.symbol?.toUpperCase(),
-                orderType,
-                quantity: requestedQuantity,
+                orderType: succeeded.orderType,
+                quantity: Number(succeeded.orderItem.quantity),
             });
         }
     };
