@@ -7,11 +7,11 @@ import { formatIndianNumber } from "@/lib/utils";
 
 const StockChart = ({ coinId }) => {
     const dispatch = useDispatch();
-    const { coin } = useSelector(store => store)
+    const marketChart = useSelector((state) => state.coin.marketChart);
 
     const series = [
         {
-            data: coin.marketChart?.data ?? [],
+            data: marketChart?.coinId === coinId ? marketChart.data ?? [] : [],
         },
     ];
     const timeSeries = [
@@ -96,7 +96,15 @@ const StockChart = ({ coinId }) => {
     }
     useEffect(() => {
         if (!coinId) return;
-        dispatch(fetchMarketChart({ coinId, days: activeLabel.value, jwt: localStorage.getItem("jwt") }))
+        const controller = new AbortController();
+        dispatch(fetchMarketChart({
+            coinId,
+            days: activeLabel.value,
+            jwt: localStorage.getItem("jwt"),
+            signal: controller.signal,
+        }));
+
+        return () => controller.abort();
     }, [dispatch, coinId, activeLabel])
     return (
         <div>
@@ -106,7 +114,11 @@ const StockChart = ({ coinId }) => {
                 </Button>)}
             </div>
             <div id="chart-timelines">
-                {series[0]?.data?.length ? (
+                {!coinId ? (
+                    <div className="flex h-[350px] items-center justify-center text-sm text-muted-foreground">
+                        Select a coin to view its chart.
+                    </div>
+                ) : series[0]?.data?.length ? (
                     <Chart
                         options={options}
                         series={series}
@@ -115,7 +127,9 @@ const StockChart = ({ coinId }) => {
                     />
                 ) : (
                     <div className="flex h-[350px] items-center justify-center text-sm text-muted-foreground">
-                        Loading chart…
+                        {marketChart?.coinId === coinId && marketChart.error
+                            ? "Unable to load chart. Please try selecting the coin again."
+                            : "Loading chart…"}
                     </div>
                 )}
             </div>

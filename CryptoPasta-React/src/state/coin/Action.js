@@ -19,27 +19,50 @@ export const getCoinList = (page) => async (dispatch) => {
     }
 };
 
-export const getTop50CoinList = () => async (dispatch) => {
+export const getTop50CoinList = ({ signal } = {}) => async (dispatch) => {
     dispatch({ type: FETCH_TOP_50_COINS_REQUEST });
     try {
-        const response = await api.get("/coins/top50", getAuthConfig());
+        const response = await api.get("/coins/top50", {
+            ...getAuthConfig(),
+            signal,
+        });
         dispatch({ type: FETCH_TOP_50_COINS_SUCCESS, payload: response.data });
-        console.log("top 50", response.data)
     } catch (error) {
-        console.log("error", error)
-        dispatch({ type: FETCH_TOP_50_COINS_FAILURE, payload: error.message });
+        if (error.code !== "ERR_CANCELED") {
+            dispatch({ type: FETCH_TOP_50_COINS_FAILURE, payload: error.message });
+        }
     }
 };
 
-export const fetchMarketChart = ({ coinId, days, jwt }) => async (dispatch) => {
-    dispatch({ type: FETCH_MARKET_CHART_REQUEST });
+export const fetchMarketChart = ({ coinId, days, jwt, signal }) => async (dispatch) => {
+    dispatch({ type: FETCH_MARKET_CHART_REQUEST, payload: { coinId } });
     try {
-        const response = await api.get(`/coins/${coinId}/chart?days=${days}`, getAuthConfig(jwt));
-        dispatch({ type: FETCH_MARKET_CHART_SUCCESS, payload: response.data });
+        const response = await api.get(`/coins/${coinId}/chart`, {
+            ...getAuthConfig(jwt),
+            params: { days },
+            signal,
+        });
+        dispatch({
+            type: FETCH_MARKET_CHART_SUCCESS,
+            payload: { ...response.data, coinId },
+        });
     } catch (error) {
-        console.log("error", error)
-        dispatch({ type: FETCH_MARKET_CHART_FAILURE, payload: error.message });
+        if (error.code !== "ERR_CANCELED") {
+            dispatch({
+                type: FETCH_MARKET_CHART_FAILURE,
+                payload: { coinId, error: error.message },
+            });
+        }
     }
+};
+
+export const fetchCoinMarketData = (coinId, signal) => async () => {
+    const response = await api.get("/coins/markets", {
+        ...getAuthConfig(),
+        params: { ids: coinId },
+        signal,
+    });
+    return response.data?.[0] ?? null;
 };
 
 export const fetchCoinById = (coinId) => async (dispatch) => {
@@ -69,11 +92,18 @@ export const fetchCoinDetails = ({ coinId, jwt }) => async (dispatch) => {
 export const searchCoin = (keyword) => async (dispatch) => {
     dispatch({ type: SEARCH_COIN_REQUEST });
     try {
-        const response = await api.get(`/coins/search?q=${keyword}`, getAuthConfig());
+        const response = await api.get("/coins/search", {
+            ...getAuthConfig(),
+            params: { q: keyword },
+        });
         dispatch({ type: SEARCH_COIN_SUCCESS, payload: response.data });
-        console.log("search coin", response.data)
+        return { coins: response.data?.coins ?? [] };
     } catch (error) {
-        console.log("error", error)
-        dispatch({ type: SEARCH_COIN_FAILURE, payload: error.message });
+        const responseData = error.response?.data;
+        const message = typeof responseData === "string"
+            ? responseData
+            : responseData?.detail ?? responseData?.message ?? error.message;
+        dispatch({ type: SEARCH_COIN_FAILURE, payload: message });
+        return { error: message };
     }
 };
