@@ -3,14 +3,19 @@ package com.CryptoPasta.CryptoPasta.Controller;
 import com.CryptoPasta.CryptoPasta.Config.JwtProvider;
 import com.CryptoPasta.CryptoPasta.Model.TwoFactorOtp;
 import com.CryptoPasta.CryptoPasta.Model.User;
+import com.CryptoPasta.CryptoPasta.Request.OtpVerificationRequest;
 import com.CryptoPasta.CryptoPasta.Repository.UserRepository;
 import com.CryptoPasta.CryptoPasta.Response.AuthResponse;
+import com.CryptoPasta.CryptoPasta.Services.OtpVerificationResult;
 import com.CryptoPasta.CryptoPasta.Services.*;
 import com.CryptoPasta.CryptoPasta.Utilities.OtpUtils;
+import jakarta.mail.MessagingException;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.MailException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -109,7 +114,6 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<AuthResponse> login(@RequestBody User user) throws Exception {
-        System.out.println("LOGIN CONTROLLER REACHED: " + user.getEmail());
         String username = normalizeEmail(user.getEmail());
         String password = user.getPassword();
         User authUser = userRepository.findByEmail(username);
@@ -121,27 +125,28 @@ public class AuthController {
         }
 
         Authentication auth = authenticate(username, password);
-        SecurityContextHolder.getContext().setAuthentication(auth);
-
-        String jwt = JwtProvider.generateToken(auth);
-
         if (authUser.getTwoFactorAuth() != null && authUser.getTwoFactorAuth().isEnabled()) {
+            String otp = OtpUtils.generateOtp();
+            TwoFactorOtp challenge = twoFactorOtpService.createTwoFactorOtp(authUser, otp);
+            try {
+                emailService.sendVerificationOtpEmail(username, otp);
+            } catch (MessagingException | MailException exception) {
+                twoFactorOtpService.deleteTwoFactorOtp(challenge.getId());
+                throw new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "Could not send the verification email. Please try again.",
+                        exception
+                );
+            }
 
             AuthResponse res = new AuthResponse();
-            res.setMessage("Two Factor Authentication is enabled");
+            res.setMessage("Two-factor verification code sent.");
             res.setTwoFactorAuthEnable(true);
-            String otp = OtpUtils.generateOtp();
-
-            TwoFactorOtp oldTwoFactorOtp = twoFactorOtpService.findByUser(authUser.getId());
-            if (oldTwoFactorOtp != null) {
-                twoFactorOtpService.deleteTwoFactorOtp(oldTwoFactorOtp);
-            }
-            TwoFactorOtp newTwoFactorOtp = twoFactorOtpService.createTwoFactorOtp(authUser, otp, jwt);
-            emailService.sendVerificationOtpEmail(username, otp);
-
-            res.setSession(newTwoFactorOtp.getId());
+            res.setSession(challenge.getId());
             return new ResponseEntity<>(res, HttpStatus.ACCEPTED);
         }
+
+        String jwt = JwtProvider.generateToken(auth);
         AuthResponse res = new AuthResponse();
         res.setJwt(jwt);
         res.setStatus(true);
@@ -165,17 +170,64 @@ public class AuthController {
         return new UsernamePasswordAuthenticationToken(userDetails, password, userDetails.getAuthorities());
     }
 
-    @PostMapping("/two-factor/otp/{otp}")
-    public ResponseEntity<AuthResponse> verifySigninOtp(@PathVariable String otp, @RequestParam String id) throws Exception {
-        TwoFactorOtp twoFactorOtp = twoFactorOtpService.findById(id);
-        if (twoFactorOtpService.verifyTwoFactorOtp(twoFactorOtp, otp)) {
-            AuthResponse res = new AuthResponse();
-            res.setMessage("Two Factor Authentication Verified");
-            res.setTwoFactorAuthEnable(true);
-            res.setJwt(twoFactorOtp.getJwt());
-            return new ResponseEntity<>(res, HttpStatus.OK);
+    @PostMapping("/two-factor/otp")
+    public ResponseEntity<AuthResponse> verifySigninOtp(
+            @RequestBody @Valid OtpVerificationRequest request) {
+        OtpVerificationResult result = twoFactorOtpService.verifyTwoFactorOtp(
+                request.getSessionId(),
+                request.getOtp()
+        );
+
+        if (result.status() != OtpVerificationResult.Status.SUCCESS) {
+            throw otpVerificationException(result.status());
         }
-        throw new Exception("Invalid OTP");
+
+        User user = result.user();
+        if (user.getTwoFactorAuth() == null || !user.getTwoFactorAuth().isEnabled()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Two-factor authentication is no longer enabled."
+            );
+        }
+
+        UserDetails userDetails = customUserDetailService.loadUserByUsername(user.getEmail());
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities()
+        );
+
+        AuthResponse response = new AuthResponse();
+        response.setMessage("Two-factor verification successful.");
+        response.setTwoFactorAuthEnable(true);
+        response.setStatus(true);
+        response.setJwt(JwtProvider.generateToken(authentication));
+        return ResponseEntity.ok(response);
+    }
+
+    private ResponseStatusException otpVerificationException(OtpVerificationResult.Status status) {
+        return switch (status) {
+            case INVALID -> new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "The verification code is incorrect."
+            );
+            case EXPIRED -> new ResponseStatusException(
+                    HttpStatus.GONE,
+                    "The verification code has expired. Sign in again to request a new one."
+            );
+            case LOCKED -> new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many incorrect codes. Sign in again to request a new one."
+            );
+            case NOT_FOUND -> new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "The verification session is invalid or has already been used."
+            );
+            case SUCCESS -> new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "OTP verification result was inconsistent."
+            );
+        };
     }
 
     @ExceptionHandler(BadCredentialsException.class)

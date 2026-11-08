@@ -26,7 +26,6 @@ function App() {
   // const [count, setCount] = useState(0)
   const { auth } = useSelector(store => store);
   const dispatch = useDispatch();
-  console.log("auth----", auth)
   useEffect(() => {
     const jwt = auth.jwt || localStorage.getItem("jwt");
 

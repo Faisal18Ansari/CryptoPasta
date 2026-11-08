@@ -2,30 +2,44 @@ package com.CryptoPasta.CryptoPasta.Services;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
-import org.springframework.mail.MailException;
-import org.springframework.mail.MailSendException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 public class EmailService {
-    private JavaMailSender javaMailSender;
 
-    public void sendVerificationOtpEmail(String email, String otp) throws MessagingException {
-        MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-        MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, "utf-8");
+    private final JavaMailSender mailSender;
+    private final String fromAddress;
 
-        String subject = "OTP Verification";
-        String text = "Your Verification code is: " + otp;
-        mimeMessageHelper.setSubject(subject);
-        mimeMessageHelper.setText(text);
-        mimeMessageHelper.setTo(email);
+    public EmailService(
+            JavaMailSender mailSender,
+            @Value("${app.mail.from}") String fromAddress) {
+        this.mailSender = mailSender;
+        this.fromAddress = fromAddress;
+    }
 
-        try {
-            javaMailSender.send(mimeMessage);
-        } catch (MailException e) {
-            throw new MailSendException(e.getMessage());
-        }
+    public void sendVerificationOtpEmail(String email, String otp)
+            throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(
+                message,
+                false,
+                StandardCharsets.UTF_8.name()
+        );
+
+        helper.setFrom(fromAddress);
+        helper.setTo(email);
+        helper.setSubject("CryptoPasta verification code");
+        helper.setText(
+                "Your CryptoPasta verification code is: " + otp
+                        + "\nIf you did not request this code, you can ignore this email.",
+                false
+        );
+
+        mailSender.send(message);
     }
 }
