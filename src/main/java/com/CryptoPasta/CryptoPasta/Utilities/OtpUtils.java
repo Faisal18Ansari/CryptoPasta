@@ -1,16 +1,13 @@
 package com.CryptoPasta.CryptoPasta.Utilities;
 
-import java.util.Random;
+import java.security.SecureRandom;
+import java.util.Locale;
 
 public class OtpUtils {
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     public static String generateOtp() {
-        int otpLength = 6;
-        Random random = new Random();
-        StringBuilder otp = new StringBuilder(otpLength);
-        for (int i = 0; i < otpLength; i++) {
-            otp.append(random.nextInt(10));
-        }
-        return otp.toString();
+        return String.format(Locale.ROOT, "%06d", RANDOM.nextInt(1_000_000));
     }
 }

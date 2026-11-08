@@ -61,6 +61,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User disableTwoFactorAuthentication(User user) {
+        TwoFactorAuth twoFactorAuth = new TwoFactorAuth();
+        twoFactorAuth.setEnabled(false);
+        user.setTwoFactorAuth(twoFactorAuth);
+        return userRepository.save(user);
+    }
+
+    @Override
     public User updatePassword(User user, String newPassword) {
         PasswordPolicy.validateBcryptPassword(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));

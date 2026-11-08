@@ -10,22 +10,34 @@ const getErrorMessage = (error, fallback) => {
     if (typeof responseData === "string") {
         return responseData;
     }
-    return responseData?.message ?? error.message ?? fallback;
+    return responseData?.detail
+        ?? responseData?.message
+        ?? responseData?.title
+        ?? error.message
+        ?? fallback;
 };
 
 export const register = (userData) => async (dispatch) => {
     dispatch({ type: types.REGISTER_REQUEST });
 
     try {
-        await api.post("/auth/signup", userData);
+        const response = await api.post("/auth/signup", userData);
+        const jwt = response.data?.jwt;
         dispatch({ type: types.REGISTER_SUCCESS });
-        return true;
+
+        if (!jwt) {
+            return { success: true, authenticated: false };
+        }
+
+        localStorage.setItem("jwt", jwt);
+        dispatch({ type: types.LOGIN_SUCCESS, payload: jwt });
+        return { success: true, authenticated: true };
     } catch (error) {
         dispatch({
             type: types.REGISTER_FAILURE,
             payload: getErrorMessage(error, "Signup failed."),
         });
-        return false;
+        return { success: false, authenticated: false };
     }
 };
 

@@ -1,46 +1,102 @@
 package com.CryptoPasta.CryptoPasta.Services;
 
+import com.CryptoPasta.CryptoPasta.Domain.TwoFactorOperation;
 import com.CryptoPasta.CryptoPasta.Domain.VerificationType;
 import com.CryptoPasta.CryptoPasta.Model.User;
 import com.CryptoPasta.CryptoPasta.Model.VerificationCode;
 import com.CryptoPasta.CryptoPasta.Repository.VerificationCodeRepository;
-import com.CryptoPasta.CryptoPasta.Utilities.OtpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class VerificationCodeServiceImpl implements VerificationCodeService {
 
+    private static final int OTP_TTL_MINUTES = 5;
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final int RESEND_COOLDOWN_SECONDS = 60;
+
     @Autowired
     private VerificationCodeRepository verificationCodeRepository;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Override
-    public VerificationCode sendVerificationCode(User user, VerificationType verificationType) {
-        VerificationCode verificationCode1 = new VerificationCode();
-        verificationCode1.setOtp(OtpUtils.generateOtp());
-        verificationCode1.setVerificationType(verificationType);
-        verificationCode1.setUser(user);
-        return verificationCodeRepository.save(verificationCode1);
+    @Transactional
+    public VerificationCode sendVerificationCode(
+            User user,
+            VerificationType verificationType,
+            TwoFactorOperation operation,
+            String otp) {
+        Instant now = Instant.now();
+        verificationCodeRepository.findByUserIdForUpdate(user.getId()).ifPresent(existing -> {
+            Instant createdAt = existing.getCreatedAt();
+            if (createdAt != null
+                    && now.isBefore(createdAt.plusSeconds(RESEND_COOLDOWN_SECONDS))) {
+                throw new ResponseStatusException(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        "Wait before requesting another verification code."
+                );
+            }
+            verificationCodeRepository.delete(existing);
+            verificationCodeRepository.flush();
+        });
+
+        VerificationCode verificationCode = new VerificationCode();
+        verificationCode.setOtpHash(passwordEncoder.encode(otp));
+        verificationCode.setVerificationType(verificationType);
+        verificationCode.setUser(user);
+        verificationCode.setEmail(user.getEmail());
+        verificationCode.setOperation(operation);
+        verificationCode.setCreatedAt(now);
+        verificationCode.setExpiresAt(now.plus(OTP_TTL_MINUTES, ChronoUnit.MINUTES));
+        verificationCode.setFailedAttempts(0);
+        return verificationCodeRepository.save(verificationCode);
     }
 
     @Override
-    public VerificationCode getVerificationCodeById(Long id) throws Exception {
-        Optional<VerificationCode> verificationCodeOptional = verificationCodeRepository.findById(id);
-        if (verificationCodeOptional.isPresent()) {
-            return verificationCodeOptional.get();
+    @Transactional
+    public OtpVerificationResult verifyVerificationCode(
+            Long id,
+            Long userId,
+            TwoFactorOperation operation,
+            String otp) {
+        VerificationCode challenge = verificationCodeRepository
+                .findByIdAndUserIdForUpdate(id, userId, operation)
+                .orElse(null);
+        if (challenge == null) {
+            return OtpVerificationResult.failure(OtpVerificationResult.Status.NOT_FOUND);
         }
-        throw new Exception("Verification Code not found.");
+
+        Instant expiresAt = challenge.getExpiresAt();
+        if (expiresAt == null || !Instant.now().isBefore(expiresAt)) {
+            verificationCodeRepository.delete(challenge);
+            return OtpVerificationResult.failure(OtpVerificationResult.Status.EXPIRED);
+        }
+
+        if (!passwordEncoder.matches(otp, challenge.getOtpHash())) {
+            challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
+            if (challenge.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
+                verificationCodeRepository.delete(challenge);
+                return OtpVerificationResult.failure(OtpVerificationResult.Status.LOCKED);
+            }
+            verificationCodeRepository.save(challenge);
+            return OtpVerificationResult.failure(OtpVerificationResult.Status.INVALID);
+        }
+
+        verificationCodeRepository.delete(challenge);
+        return OtpVerificationResult.success(challenge.getUser());
     }
 
     @Override
-    public VerificationCode getVerificationCodeByUser(Long userId) {
-        return verificationCodeRepository.findByUserId(userId);
-    }
-
-    @Override
-    public void deleteVerificationCodeById(VerificationCode verificationCode) {
-        verificationCodeRepository.delete(verificationCode);
+    @Transactional
+    public void deleteVerificationCodeById(Long id) {
+        verificationCodeRepository.deleteById(id);
     }
 }

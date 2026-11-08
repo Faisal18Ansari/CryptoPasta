@@ -23,9 +23,30 @@ const Auth = () => {
                         Crypto<span className="text-chart-4">Pasta</span>
                     </h1>
                     <h2 className="mt-2 mb-6 w-full text-center text-2xl font-semibold">{pageTitle}</h2>
+                    {location.state?.signupSuccess && (
+                        <p role="status" className="mb-4 text-center text-sm text-green-400">
+                            Your account was created. Sign in to continue.
+                        </p>
+                    )}
+                    {location.state?.sessionExpired && (
+                        <p role="alert" className="mb-4 text-center text-sm text-destructive">
+                            Your session expired. Please sign in again.
+                        </p>
+                    )}
                     {location.pathname == "/signup" ? (
                         <section className="w-full px-4">
-                            <Signup onSubmitted={() => navigate("/signin")} />
+                            <Signup
+                                onSubmitted={({ authenticated }) => {
+                                    if (authenticated) {
+                                        navigate("/", { replace: true });
+                                    } else {
+                                        navigate("/signin", {
+                                            replace: true,
+                                            state: { signupSuccess: true },
+                                        });
+                                    }
+                                }}
+                            />
                             <div className="flex items-center justify-center gap-2">
                                 <span>Already have an account?</span>
                                 <Button
