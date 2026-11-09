@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -33,7 +34,7 @@ public class OrderController {
             @RequestBody @Valid CreateOrderRequest req) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Coin coin = coinService.findById(req.getCoinId());
-        double executionPrice = coinService.getCurrentPrice(req.getCoinId());
+        BigDecimal executionPrice = coinService.getCurrentPrice(req.getCoinId());
         Order order = orderService.processOrder(
                 coin,
                 req.getQuantity(),

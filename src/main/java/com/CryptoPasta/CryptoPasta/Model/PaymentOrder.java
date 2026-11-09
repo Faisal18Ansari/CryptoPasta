@@ -5,6 +5,8 @@ import com.CryptoPasta.CryptoPasta.Domain.PaymentOrderStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(uniqueConstraints = {
         @UniqueConstraint(name = "uk_payment_order_razorpay_reference", columnNames = "razorpay_reference_id"),
@@ -17,7 +19,8 @@ public class PaymentOrder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long amount;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
 
     private PaymentOrderStatus status;
 

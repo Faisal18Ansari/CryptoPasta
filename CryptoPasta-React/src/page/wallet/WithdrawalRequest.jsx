@@ -42,8 +42,9 @@ const WithdrawalRequest = () => {
 
         const requestedAmount = Number(amount);
 
-        if (!amount || !Number.isSafeInteger(requestedAmount) || requestedAmount <= 0) {
-            setError("Enter a whole-number amount greater than zero.");
+        if (!amount || !Number.isFinite(requestedAmount) || requestedAmount <= 0
+            || !/^\d+(\.\d{1,2})?$/.test(amount)) {
+            setError("Enter an amount greater than zero with no more than two decimal places.");
             return;
         }
 
@@ -67,7 +68,7 @@ const WithdrawalRequest = () => {
 
         try {
             const result = await dispatch(withdrawalRequest({
-                amount: requestedAmount,
+                amount,
                 jwt
             }));
 
@@ -106,8 +107,8 @@ const WithdrawalRequest = () => {
                         onChange={handleChange}
                         value={amount}
                         type="number"
-                        min="1"
-                        step="1"
+                        min="0.01"
+                        step="0.01"
                         max={balance}
                         placeholder="9000"
                         className="mx-auto !w-52 flex-none border-none bg-transparent py-6 text-center text-2xl outline-none focus-visible:ring-0"

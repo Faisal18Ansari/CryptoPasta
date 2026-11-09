@@ -6,11 +6,12 @@ import com.CryptoPasta.CryptoPasta.Model.Order;
 import com.CryptoPasta.CryptoPasta.Model.OrderItem;
 import com.CryptoPasta.CryptoPasta.Model.User;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface OrderService {
 
-    Order createOrder(User user, OrderItem orderItem, OrderType orderType, double executionPrice);
+    Order createOrder(User user, OrderItem orderItem, OrderType orderType, BigDecimal executionPrice);
 
     Order getOrderById(Long orderId);
 
@@ -18,9 +19,9 @@ public interface OrderService {
 
     Order processOrder(
             Coin coin,
-            double quantity,
+            BigDecimal quantity,
             OrderType orderType,
             User user,
-            double clientPrice,
-            double executionPrice) throws Exception;
+            BigDecimal clientPrice,
+            BigDecimal executionPrice) throws Exception;
 }

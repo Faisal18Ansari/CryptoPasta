@@ -16,6 +16,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -32,7 +35,10 @@ public class WithdrawalController {
 
     @PostMapping("/api/withdrawal/{amount}")
     public ResponseEntity<?> withdrawalRequest(
-            @PathVariable @Positive(message = "Withdrawal amount must be greater than zero.") Long amount,
+            @PathVariable
+            @DecimalMin(value = "0.01", message = "Withdrawal amount must be at least one paisa.")
+            @Digits(integer = 17, fraction = 2, message = "Withdrawal amount supports up to two decimal places.")
+            BigDecimal amount,
             @RequestHeader("Authorization") String jwt) throws Exception {
         User user = userService.findUserProfileByJwt(jwt);
         Withdrawal withdrawal = withdrawalService.requestMyWithdrawal(amount, user);

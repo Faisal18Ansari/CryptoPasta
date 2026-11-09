@@ -4,6 +4,7 @@ import com.CryptoPasta.CryptoPasta.Domain.WalletTransactionType;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
@@ -25,5 +26,6 @@ public class WalletTransaction {
 
     private String purpose;
 
-    private Long amount;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal amount;
 }

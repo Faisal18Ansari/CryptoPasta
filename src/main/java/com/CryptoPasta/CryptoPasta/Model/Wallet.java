@@ -15,6 +15,7 @@ public class Wallet {
     @OneToOne
     private User user;
 
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
 }

@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -95,7 +96,7 @@ public class CoinServiceImpl implements CoinService {
 
             JsonNode marketData = jsonNode.get("market_data");
 
-            coin.setCurrentPrice(marketData.get("current_price").get("inr").asDouble());
+            coin.setCurrentPrice(marketData.get("current_price").get("inr").decimalValue());
 
             coin.setMarketCap(marketData.get("market_cap").get("inr").bigIntegerValue());
 
@@ -103,11 +104,11 @@ public class CoinServiceImpl implements CoinService {
 
             coin.setTotalVolume(marketData.get("total_volume").get("inr").bigIntegerValue());
 
-            coin.setHigh24h(marketData.get("high_24h").get("inr").asDouble());
+            coin.setHigh24h(marketData.get("high_24h").get("inr").decimalValue());
 
-            coin.setLow24h(marketData.get("low_24h").get("inr").asDouble());
+            coin.setLow24h(marketData.get("low_24h").get("inr").decimalValue());
 
-            coin.setPriceChange24h(marketData.get("price_change_24h").asDouble());
+            coin.setPriceChange24h(marketData.get("price_change_24h").decimalValue());
 
             // No "inr" here
             coin.setPriceChangePercentage24h(marketData.get("price_change_percentage_24h").asDouble());
@@ -118,6 +119,8 @@ public class CoinServiceImpl implements CoinService {
             coin.setMarketCapChangePercentage24h(marketData.get("market_cap_change_percentage_24h").asDouble());
 
             coin.setTotalSupply(marketData.get("total_supply").decimalValue());
+            coin.setAth(requiredInrMarketValue(marketData, "ath", coinId));
+            coin.setAtl(requiredInrMarketValue(marketData, "atl", coinId));
             JsonNode maxSupply = marketData.get("max_supply");
 
             if (maxSupply != null && !maxSupply.isNull()) {
@@ -131,6 +134,15 @@ public class CoinServiceImpl implements CoinService {
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             throw new Exception(e.getMessage());
         }
+    }
+
+    private BigDecimal requiredInrMarketValue(JsonNode marketData, String field, String coinId) {
+        JsonNode value = marketData.path(field).path("inr");
+        if (value.isMissingNode() || value.isNull() || !value.isNumber()) {
+            throw new IllegalStateException(
+                    "CoinGecko response is missing market_data." + field + ".inr for coin " + coinId);
+        }
+        return value.decimalValue();
     }
 
     @Override
@@ -235,7 +247,7 @@ public class CoinServiceImpl implements CoinService {
     }
 
     @Override
-    public double getCurrentPrice(String coinId) throws Exception {
+    public BigDecimal getCurrentPrice(String coinId) throws Exception {
         String response = getMarketData(List.of(coinId));
         JsonNode marketData = objectMapper.readTree(response);
 
@@ -248,8 +260,8 @@ public class CoinServiceImpl implements CoinService {
             throw new Exception("CoinGecko returned an invalid market price; order was not placed.");
         }
 
-        double price = priceNode.asDouble();
-        if (!Double.isFinite(price) || price <= 0) {
+        BigDecimal price = priceNode.decimalValue();
+        if (price.signum() <= 0) {
             throw new Exception("CoinGecko returned an invalid market price; order was not placed.");
         }
 

@@ -5,7 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Digits;
 import lombok.Data;
+
+import java.math.BigDecimal;
 
 @Data
 public class CreateOrderRequest {
@@ -16,12 +19,14 @@ public class CreateOrderRequest {
 
     @NotNull(message = "Quantity is required.")
     @Positive(message = "Quantity must be greater than zero.")
-    private Double quantity;
+    @Digits(integer = 18, fraction = 18, message = "Quantity supports up to 18 decimal places.")
+    private BigDecimal quantity;
 
     @NotNull(message = "Order type is required.")
     private OrderType orderType;
 
     @NotNull(message = "Displayed price is required.")
     @Positive(message = "Displayed price must be greater than zero.")
-    private Double clientPrice;
+    @Digits(integer = 18, fraction = 18, message = "Price supports up to 18 decimal places.")
+    private BigDecimal clientPrice;
 }

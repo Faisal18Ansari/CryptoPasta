@@ -55,9 +55,12 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    public Wallet addBalance(Wallet wallet, Long money) {
+    public Wallet addBalance(Wallet wallet, BigDecimal money) {
+        if (money == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Amount is required.");
+        }
         BigDecimal balance = wallet.getBalance();
-        BigDecimal newBalance = balance.add(BigDecimal.valueOf(money));
+        BigDecimal newBalance = balance.add(money);
         wallet.setBalance(newBalance);
         return walletRepository.save(wallet);
     }
@@ -73,8 +76,8 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Wallet walletToWalletTransfer(User sender, Long receiverWalletId, Long money) throws Exception {
-        if (money == null || money <= 0) {
+    public Wallet walletToWalletTransfer(User sender, Long receiverWalletId, BigDecimal money) throws Exception {
+        if (money == null || money.signum() <= 0 || money.stripTrailingZeros().scale() > 2) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Transfer amount must be greater than zero."
@@ -122,7 +125,7 @@ public class WalletServiceImpl implements WalletService {
             );
         }
 
-        BigDecimal transferAmount = BigDecimal.valueOf(money);
+        BigDecimal transferAmount = money;
         if (lockedSender.getBalance().compareTo(transferAmount) < 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -141,7 +144,7 @@ public class WalletServiceImpl implements WalletService {
                 WalletTransactionType.WALLET_TRANSFER,
                 String.valueOf(lockedReceiver.getId()),
                 "Transfer sent to wallet #" + lockedReceiver.getId(),
-                -money
+                money.negate()
         );
         transactionService.createTransaction(
                 lockedReceiver,

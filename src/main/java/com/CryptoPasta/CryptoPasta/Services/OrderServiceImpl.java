@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -29,17 +30,18 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private TransactionService transactionService;
 
-    private static final double MAX_PRICE_DEVIATION_RATIO = 0.02;
+    private static final BigDecimal MAX_PRICE_DEVIATION_RATIO = new BigDecimal("0.02");
+    private static final BigDecimal MAX_ORDER_TOTAL = new BigDecimal("99999999999999999.99");
 
     @Override
-    public Order createOrder(User user, OrderItem orderItem, OrderType orderType, double executionPrice) {
-        double totalPrice = executionPrice * orderItem.getQuantity();
+    public Order createOrder(User user, OrderItem orderItem, OrderType orderType, BigDecimal executionPrice) {
+        BigDecimal totalPrice = calculateOrderTotal(executionPrice, orderItem.getQuantity());
 
         Order order = new Order();
         order.setUser(user);
         order.setOrderItem(orderItem);
         order.setOrderType(orderType);
-        order.setPrice(BigDecimal.valueOf(totalPrice));
+        order.setPrice(totalPrice);
         order.setTimeStamp(LocalDateTime.now());
         order.setOrderStatus(OrderStatus.PENDING);
 
@@ -59,7 +61,11 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findByUserId(userId);
     }
 
-    private OrderItem createOrderItem(Coin coin, double quantity, double buyPrice, double sellPrice) {
+    private OrderItem createOrderItem(
+            Coin coin,
+            BigDecimal quantity,
+            BigDecimal buyPrice,
+            BigDecimal sellPrice) {
         OrderItem orderItem = new OrderItem();
         orderItem.setCoin(coin);
         orderItem.setQuantity(quantity);
@@ -69,13 +75,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Order buyAsset(Coin coin, double quantity, User user, double executionPrice) throws Exception {
-        if (!Double.isFinite(quantity) || quantity <= 0) {
+    public Order buyAsset(Coin coin, BigDecimal quantity, User user, BigDecimal executionPrice) throws Exception {
+        if (quantity == null || quantity.signum() <= 0) {
             throw new Exception("Quantity should be minimum 1!");
         }
 
-        double buyPrice = executionPrice;
-        OrderItem orderItem = createOrderItem(coin, quantity, buyPrice, 0);
+        BigDecimal buyPrice = executionPrice;
+        OrderItem orderItem = createOrderItem(coin, quantity, buyPrice, BigDecimal.ZERO);
         Order order = createOrder(user, orderItem, OrderType.BUY, executionPrice);
         orderItem.setOrder(order);
         walletService.payOrderAmount(order, user);
@@ -89,24 +95,23 @@ public class OrderServiceImpl implements OrderService {
                 WalletTransactionType.BUY_ASSET,
                 null,
                 "Bought " + quantity + " " + coin.getSymbol().toUpperCase(),
-                order.getPrice().longValue());
+                order.getPrice());
 
         // CREATE ASSET
         Asset oldAsset = assetService.findAssetByUserIdAndCoinIdForUpdate(
                 order.getUser().getId(),
                 order.getOrderItem().getCoin().getId());
         if (oldAsset == null) {
-            Asset newAsset = assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity());
-            newAsset.setBuyPrice(executionPrice);
+            assetService.createAsset(user, orderItem.getCoin(), orderItem.getQuantity(), executionPrice);
         } else {
-            assetService.updateAsset(oldAsset.getId(), quantity);
+            assetService.addToAsset(oldAsset.getId(), quantity, executionPrice);
         }
         return saveOrder;
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Order sellAsset(Coin coin, double quantity, User user, double executionPrice) throws Exception {
-        if (quantity <= 0) {
+    public Order sellAsset(Coin coin, BigDecimal quantity, User user, BigDecimal executionPrice) throws Exception {
+        if (quantity == null || quantity.signum() <= 0) {
             throw new Exception("Quantity should be minimum 1!");
         }
         Asset assetToSell = assetService.findAssetByUserIdAndCoinIdForUpdate(
@@ -116,10 +121,10 @@ public class OrderServiceImpl implements OrderService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Asset not found.");
         }
 
-        double buyPrice = assetToSell.getBuyPrice();
-        double sellPrice = executionPrice;
+        BigDecimal buyPrice = assetToSell.getBuyPrice();
+        BigDecimal sellPrice = executionPrice;
 
-        if (assetToSell.getQuantity() < quantity) {
+        if (assetToSell.getQuantity().compareTo(quantity) < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient quantity to sell.");
         }
 
@@ -136,9 +141,9 @@ public class OrderServiceImpl implements OrderService {
                 WalletTransactionType.SELL_ASSET,
                 null,
                 "Sold " + quantity + " " + coin.getSymbol().toUpperCase(),
-                order.getPrice().longValue());
-        Asset updatedAsset = assetService.updateAsset(assetToSell.getId(), -quantity);
-        if (updatedAsset.getQuantity() * executionPrice <= 1) {
+                order.getPrice());
+        Asset updatedAsset = assetService.subtractFromAsset(assetToSell.getId(), quantity);
+        if (updatedAsset.getQuantity().signum() == 0) {
             assetService.deleteAsset(updatedAsset.getId());
         }
         return saveOrder;
@@ -148,27 +153,28 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Order processOrder(
             Coin coin,
-            double quantity,
+            BigDecimal quantity,
             OrderType orderType,
             User user,
-            double clientPrice,
-            double executionPrice) throws Exception {
-        if (!Double.isFinite(quantity) || quantity <= 0) {
+            BigDecimal clientPrice,
+            BigDecimal executionPrice) throws Exception {
+        if (quantity == null || quantity.signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity must be greater than zero.");
         }
-        if (!Double.isFinite(clientPrice) || clientPrice <= 0) {
+        if (clientPrice == null || clientPrice.signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Displayed price is invalid.");
         }
-        if (!Double.isFinite(executionPrice) || executionPrice <= 0
-                || !Double.isFinite(executionPrice * quantity)) {
+        if (executionPrice == null || executionPrice.signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Fresh market price is invalid.");
         }
         if (orderType == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order type is required.");
         }
+        calculateOrderTotal(executionPrice, quantity);
 
-        double deviation = Math.abs(executionPrice - clientPrice) / clientPrice;
-        if (deviation > MAX_PRICE_DEVIATION_RATIO) {
+        BigDecimal deviation = executionPrice.subtract(clientPrice).abs();
+        BigDecimal allowedDeviation = clientPrice.multiply(MAX_PRICE_DEVIATION_RATIO);
+        if (deviation.compareTo(allowedDeviation) > 0) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Market price changed by more than 2%. Refresh the quote and try again.");
@@ -183,5 +189,16 @@ public class OrderServiceImpl implements OrderService {
         }
 
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid order type.");
+    }
+
+    private BigDecimal calculateOrderTotal(BigDecimal executionPrice, BigDecimal quantity) {
+        BigDecimal total = executionPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
+        if (total.compareTo(MAX_ORDER_TOTAL) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Order total exceeds the supported INR amount."
+            );
+        }
+        return total;
     }
 }

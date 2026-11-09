@@ -36,8 +36,8 @@ public class WithdrawalServiceImpl implements WithdrawalService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Withdrawal requestMyWithdrawal(Long amount, User user) {
-        if (amount == null || amount <= 0) {
+    public Withdrawal requestMyWithdrawal(BigDecimal amount, User user) {
+        if (amount == null || amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Withdrawal amount must be greater than zero."
@@ -65,7 +65,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
             );
         }
 
-        BigDecimal withdrawalAmount = BigDecimal.valueOf(amount);
+        BigDecimal withdrawalAmount = amount;
         if (wallet.getBalance().compareTo(withdrawalAmount) < 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -110,8 +110,8 @@ public class WithdrawalServiceImpl implements WithdrawalService {
             );
         }
 
-        Long amount = withdrawal.getAmount();
-        if (amount == null || amount <= 0) {
+        BigDecimal amount = withdrawal.getAmount();
+        if (amount == null || amount.signum() <= 0) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "This withdrawal has an invalid amount and cannot be processed."
@@ -137,7 +137,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
             }
 
             requesterWallet.setBalance(
-                    requesterWallet.getBalance().add(BigDecimal.valueOf(amount))
+                    requesterWallet.getBalance().add(amount)
             );
             walletRepository.save(requesterWallet);
 

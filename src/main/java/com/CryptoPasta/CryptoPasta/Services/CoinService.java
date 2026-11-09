@@ -2,6 +2,7 @@ package com.CryptoPasta.CryptoPasta.Services;
 
 import com.CryptoPasta.CryptoPasta.Model.Coin;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface CoinService {
@@ -22,5 +23,5 @@ public interface CoinService {
 
     String getMarketData(List<String> coinIds) throws Exception;
 
-    double getCurrentPrice(String coinId) throws Exception;
+    BigDecimal getCurrentPrice(String coinId) throws Exception;
 }

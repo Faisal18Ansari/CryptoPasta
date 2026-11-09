@@ -26,6 +26,9 @@ const TopUpForm = () => {
                 </h1>
                 <Input onChange={handleChange}
                     value={amount}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
                     className="py-5 text-lg"
                     placeholder="₹9000" />
             </div>

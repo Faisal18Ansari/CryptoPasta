@@ -42,6 +42,9 @@ const TransferMoney = () => {
                 <Input name="amount"
                     onChange={handleChange}
                     value={formData.amount}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
                     className="py-7"
                     placeholder="₹9000"
                 />

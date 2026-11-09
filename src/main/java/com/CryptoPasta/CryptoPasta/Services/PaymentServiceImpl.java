@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -44,7 +45,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public PaymentOrder createOrder(User user, Long amount, PaymentMethod paymentMethod) {
+    public PaymentOrder createOrder(User user, BigDecimal amount, PaymentMethod paymentMethod) {
         PaymentOrder paymentOrder = new PaymentOrder();
         paymentOrder.setUser(user);
         paymentOrder.setAmount(amount);
@@ -111,13 +112,13 @@ public class PaymentServiceImpl implements PaymentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay callback signature is invalid.");
         }
 
-        if (paymentOrder.getAmount() == null || paymentOrder.getAmount() <= 0) {
+        if (paymentOrder.getAmount() == null || paymentOrder.getAmount().signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment amount is invalid.");
         }
 
         long expectedAmountInPaise;
         try {
-            expectedAmountInPaise = Math.multiplyExact(paymentOrder.getAmount(), 100L);
+            expectedAmountInPaise = amountInPaise(paymentOrder.getAmount());
         } catch (ArithmeticException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment amount is invalid.");
         }
@@ -162,7 +163,7 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponse createRazorpayPaymentLink(PaymentOrder paymentOrder) throws RazorpayException {
         long amountInPaise;
         try {
-            amountInPaise = Math.multiplyExact(paymentOrder.getAmount(), 100L);
+            amountInPaise = amountInPaise(paymentOrder.getAmount());
         } catch (ArithmeticException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Top-up amount is too large.");
         }
@@ -219,7 +220,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public PaymentResponse createStripePaymentLink(User user, Long amount, Long orderId) throws StripeException {
+    public PaymentResponse createStripePaymentLink(User user, BigDecimal amount, Long orderId) throws StripeException {
         throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Stripe top-ups are temporarily disabled."
@@ -227,6 +228,18 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private boolean hasAmount(Object amount, long expectedAmount) {
-        return amount instanceof Number number && number.longValue() == expectedAmount;
+        if (!(amount instanceof Number number)) {
+            return false;
+        }
+        try {
+            return new BigDecimal(number.toString())
+                    .compareTo(BigDecimal.valueOf(expectedAmount)) == 0;
+        } catch (NumberFormatException exception) {
+            return false;
+        }
+    }
+
+    private long amountInPaise(BigDecimal amount) {
+        return amount.movePointRight(2).longValueExact();
     }
 }

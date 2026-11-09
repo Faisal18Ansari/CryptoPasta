@@ -7,8 +7,10 @@ import com.CryptoPasta.CryptoPasta.Response.PaymentResponse;
 import com.razorpay.RazorpayException;
 import com.stripe.exception.StripeException;
 
+import java.math.BigDecimal;
+
 public interface PaymentService {
-    PaymentOrder createOrder(User user, Long amount, PaymentMethod paymentMethod);
+    PaymentOrder createOrder(User user, BigDecimal amount, PaymentMethod paymentMethod);
 
     PaymentOrder getPaymentOrderByIdForUpdate(Long id);
 
@@ -25,6 +27,6 @@ public interface PaymentService {
 
     PaymentResponse createRazorpayPaymentLink(PaymentOrder paymentOrder) throws RazorpayException;
 
-    PaymentResponse createStripePaymentLink(User user, Long amount, Long orderId) throws StripeException;
+    PaymentResponse createStripePaymentLink(User user, BigDecimal amount, Long orderId) throws StripeException;
 
 }

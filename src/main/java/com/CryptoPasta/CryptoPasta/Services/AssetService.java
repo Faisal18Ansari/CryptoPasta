@@ -4,10 +4,11 @@ import com.CryptoPasta.CryptoPasta.Model.Asset;
 import com.CryptoPasta.CryptoPasta.Model.Coin;
 import com.CryptoPasta.CryptoPasta.Model.User;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface AssetService {
-    Asset createAsset(User user, Coin coin, double quantity);
+    Asset createAsset(User user, Coin coin, BigDecimal quantity, BigDecimal executionPrice);
 
     Asset getAssetById(Long assetId) throws Exception;
 
@@ -15,7 +16,9 @@ public interface AssetService {
 
     List<Asset> getUsersAsset(Long userId);
 
-    Asset updateAsset(Long assetId, double quantity) throws Exception;
+    Asset addToAsset(Long assetId, BigDecimal quantity, BigDecimal executionPrice) throws Exception;
+
+    Asset subtractFromAsset(Long assetId, BigDecimal quantity) throws Exception;
 
     Asset findAssetByUserIdAndCoinId(Long userId, String coinId);
 

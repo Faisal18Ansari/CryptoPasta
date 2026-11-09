@@ -7,6 +7,7 @@ import com.CryptoPasta.CryptoPasta.Repository.WalletTransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -18,7 +19,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public WalletTransaction createTransaction(Wallet wallet, WalletTransactionType type,
-                                               String transferId, String purpose, Long amount) {
+                                               String transferId, String purpose, BigDecimal amount) {
         WalletTransaction transaction = new WalletTransaction();
         transaction.setWallet(wallet);
         transaction.setType(type);

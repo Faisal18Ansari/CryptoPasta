@@ -8,6 +8,42 @@ import { getUserWallet } from "@/state/wallet/Action";
 import { getAssetDetails } from "@/state/asset/Action";
 import { payOrder } from "@/state/order/Action";
 import { formatIndianNumber } from "@/lib/utils";
+
+const parseDecimal = (value) => {
+    const [mantissa, exponentText = "0"] = String(value).toLowerCase().split("e");
+    const [wholePart, fractionalPart = ""] = mantissa.split(".");
+    let coefficient = BigInt(`${wholePart || "0"}${fractionalPart}`);
+    let scale = fractionalPart.length - Number(exponentText);
+
+    if (scale < 0) {
+        coefficient *= 10n ** BigInt(-scale);
+        scale = 0;
+    }
+
+    return { coefficient, scale };
+};
+
+const calculateCoinQuantity = (inrAmount, price) => {
+    if (!/^\d+(\.\d*)?$/.test(inrAmount) || !Number.isFinite(Number(price)) || Number(price) <= 0) {
+        return "";
+    }
+
+    const amount = parseDecimal(inrAmount);
+    const coinPrice = parseDecimal(price);
+    const numerator = amount.coefficient * (10n ** BigInt(coinPrice.scale + 18));
+    const denominator = coinPrice.coefficient * (10n ** BigInt(amount.scale));
+    if (denominator === 0n) return "";
+
+    const quotient = numerator / denominator;
+    const remainder = numerator % denominator;
+    const roundedQuantity = remainder * 2n >= denominator ? quotient + 1n : quotient;
+    const unit = 10n ** 18n;
+    const whole = roundedQuantity / unit;
+    const fraction = (roundedQuantity % unit).toString().padStart(18, "0").replace(/0+$/, "");
+
+    return fraction ? `${whole}.${fraction}` : whole.toString();
+};
+
 const TradingForm = ({ onOrderSuccess, marketCoin }) => {
     const [orderType, setOrderType] = useState("BUY")
 
@@ -50,13 +86,8 @@ const TradingForm = ({ onOrderSuccess, marketCoin }) => {
         const nextAmount = e.target.value;
         setAmount(nextAmount);
         setQuantity(currentPrice > 0 && nextAmount !== ""
-            ? calculateBuyCost(Number(nextAmount), currentPrice)
+            ? calculateCoinQuantity(nextAmount, currentPrice)
             : "");
-    }
-    const calculateBuyCost = (amount, price) => {
-        let volume = amount / price;
-        let decimalPlaces = Math.max(2, price.toString().split(".")[0].length)
-        return volume.toFixed(decimalPlaces);
     }
     const handleBuyCrypto = async () => {
         if (disableOrder || !coinId) return;
@@ -67,9 +98,9 @@ const TradingForm = ({ onOrderSuccess, marketCoin }) => {
                 amount: requestedAmount,
                 orderData: {
                     coinId,
-                    quantity: requestedQuantity,
+                    quantity,
                     orderType,
-                    clientPrice: currentPrice,
+                    clientPrice: String(currentPrice),
                 },
             })
         );

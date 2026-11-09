@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import jdk.jfr.Enabled;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -16,7 +17,8 @@ public class Withdrawal {
 
     private WithdrawalStatus status;
 
-    private Long amount;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
 
     @ManyToOne
     private User user;

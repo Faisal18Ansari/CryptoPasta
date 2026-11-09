@@ -2,6 +2,7 @@ package com.CryptoPasta.CryptoPasta.Model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.Data;
@@ -28,7 +29,8 @@ public class Coin {
     private String image;
 
     @JsonProperty("current_price")
-    private double currentPrice;
+    @Column(precision = 36, scale = 18)
+    private BigDecimal currentPrice;
 
     @JsonProperty("market_cap")
     private BigInteger marketCap;
@@ -43,13 +45,16 @@ public class Coin {
     private BigInteger totalVolume;
 
     @JsonProperty("high_24h")
-    private double high24h;
+    @Column(precision = 36, scale = 18)
+    private BigDecimal high24h;
 
     @JsonProperty("low_24h")
-    private double low24h;
+    @Column(precision = 36, scale = 18)
+    private BigDecimal low24h;
 
     @JsonProperty("price_change_24h")
-    private Double priceChange24h;
+    @Column(precision = 36, scale = 18)
+    private BigDecimal priceChange24h;
 
     @JsonProperty("price_change_percentage_24h")
     private Double priceChangePercentage24h;
@@ -70,7 +75,8 @@ public class Coin {
     private Long maxSupply;
 
     @JsonProperty("ath")
-    private double ath;
+    @Column(precision = 36, scale = 18)
+    private BigDecimal ath;
 
     @JsonProperty("ath_change_percentage")
     private double athChangePercentage;
@@ -79,7 +85,8 @@ public class Coin {
     private Date athDate;
 
     @JsonProperty("atl")
-    private double atl;
+    @Column(precision = 36, scale = 18)
+    private BigDecimal atl;
 
     @JsonProperty("atl_change_percentage")
     private double atlChangePercentage;
